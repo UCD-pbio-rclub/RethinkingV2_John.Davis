@@ -313,6 +313,18 @@ post</code></pre>
 <p>4 Blacks have Black on other side</p>
 <p>4/5 probability</p>
 </div>
+<div id="h1.-suppose-there-are-two-species-of-panda-bear.-both-are-equally-common-in-the-wild-and-live-in-the-same-places.-they-look-exactly-alike-and-eat-the-same-food-and-there-is-yet-no-genetic-assay-capable-of-telling-them-apart.-they-differ-however-in-their-family-sizes.-species-a-gives-birth-to-twins-10-of-the-time-otherwise-birthing-a-single-infant.-species-b-births-twins-20-of-the-time-otherwise-birthing-singleton-infants.-assume-these-numbers-are-known-with-certainty-from-many-years-of-field-research.-now-suppose-you-are-managing-a-captive-panda-breeding-program.-you-have-a-new-female-panda-of-unknown-speciess-and-she-has-just-given-birth-to-twins.-what-is-the-probability-that-her-next-birth-will-also-be-twins" class="section level2">
+<h2>2H1. Suppose there are two species of panda bear. Both are equally common in the wild and live in the same places. They look exactly alike and eat the same food, and there is yet no genetic assay capable of telling them apart. They differ however in their family sizes. Species A gives birth to twins 10% of the time, otherwise birthing a single infant. Species B births twins 20% of the time, otherwise birthing singleton infants. Assume these numbers are known with certainty, from many years of field research. Now suppose you are managing a captive panda breeding program. You have a new female panda of unknown speciess, and she has just given birth to twins. What is the probability that her next birth will also be twins?</h2>
+<pre class="r"><code>prior &lt;- c(0.5,0.5)
+ps &lt;- c(0.2, 0.1)
+likelihood &lt;- dbinom(1,1, ps)
+raw.post &lt;- likelihood * prior
+post &lt;- raw.post/sum(raw.post)
+post</code></pre>
+<pre><code>## [1] 0.6666667 0.3333333</code></pre>
+<pre class="r"><code>post[1]*ps[1]+post[2]*ps[2]</code></pre>
+<pre><code>## [1] 0.1666667</code></pre>
+</div>
 
 
 
