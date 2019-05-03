@@ -84,7 +84,7 @@ prod( 1 + runif(12,0,0.1) )
 ```
 
 ```
-## [1] 2.052824
+## [1] 2.249825
 ```
 
 ```r
@@ -441,8 +441,8 @@ precis( m4.1 )
 
 ```
 ##             mean        sd       5.5%      94.5%
-## mu    154.607024 0.4119947 153.948577 155.265471
-## sigma   7.731333 0.2913860   7.265642   8.197024
+## mu    154.607036 0.4119932 153.948591 155.265480
+## sigma   7.731306 0.2913835   7.265619   8.196993
 ```
 
 
@@ -452,8 +452,8 @@ precis(m4.1,prob=0.95)
 
 ```
 ##             mean        sd       2.5%      97.5%
-## mu    154.607024 0.4119947 153.799530 155.414519
-## sigma   7.731333 0.2913860   7.160227   8.302439
+## mu    154.607036 0.4119932 153.799544 155.414527
+## sigma   7.731306 0.2913835   7.160205   8.302407
 ```
 
 
@@ -527,12 +527,12 @@ head(post)
 
 ```
 ##         mu    sigma
-## 1 154.0714 7.884175
-## 2 154.0434 8.117200
-## 3 154.8888 7.637282
-## 4 155.2019 7.659404
-## 5 153.8211 7.852532
-## 6 154.8863 7.794142
+## 1 154.7415 7.743817
+## 2 154.6348 7.873004
+## 3 155.2501 7.664070
+## 4 155.4417 7.881422
+## 5 155.1405 7.820931
+## 6 154.5748 7.405333
 ```
 
 
@@ -541,12 +541,12 @@ precis(post)
 ```
 
 ```
-##            mean        sd       5.5%      94.5%
-## mu    154.60207 0.4126661 153.931575 155.263032
-## sigma   7.73419 0.2886060   7.271251   8.196345
+##             mean        sd       5.5%      94.5%
+## mu    154.601432 0.4158658 153.933236 155.263150
+## sigma   7.728989 0.2913538   7.258475   8.198706
 ##                                                                                              histogram
 ## mu                                            <U+2581><U+2581><U+2585><U+2587><U+2582><U+2581><U+2581>
-## sigma <U+2581><U+2581><U+2581><U+2582><U+2585><U+2587><U+2587><U+2583><U+2581><U+2581><U+2581><U+2581>
+## sigma <U+2581><U+2581><U+2581><U+2581><U+2582><U+2585><U+2587><U+2587><U+2583><U+2581><U+2581><U+2581>
 ```
 
 
@@ -635,4 +635,636 @@ sigma ~ dunif( 0 , 50 )
 ) ,
 data=d2 )
 ```
+
+
+```r
+precis( m4.3 )
+```
+
+```
+##              mean         sd        5.5%       94.5%
+## a     154.6013671 0.27030766 154.1693633 155.0333710
+## b       0.9032807 0.04192363   0.8362787   0.9702828
+## sigma   5.0718809 0.19115478   4.7663786   5.3773831
+```
+
+```r
+round( vcov( m4.3 ) , 3 )
+```
+
+```
+##           a     b sigma
+## a     0.073 0.000 0.000
+## b     0.000 0.002 0.000
+## sigma 0.000 0.000 0.037
+```
+
+```r
+pairs(m4.3)
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-44-1.png)<!-- -->
+
+
+```r
+plot( height ~ weight , data=d2 , col=rangi2 )
+post <- extract.samples( m4.3 )
+a_map <- mean(post$a)
+b_map <- mean(post$b)
+curve( a_map + b_map*(x - xbar) , add=TRUE )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-45-1.png)<!-- -->
+
+```r
+post[1:5,]
+```
+
+```
+##          a         b    sigma
+## 1 154.0692 0.9536245 4.985399
+## 2 154.6599 0.9698089 5.020560
+## 3 154.4897 0.8284786 4.946619
+## 4 154.8114 0.9047981 4.897890
+## 5 154.7400 0.8213709 4.957076
+```
+
+
+```r
+post <- extract.samples( m4.3 )
+post[1:5,]
+```
+
+```
+##          a         b    sigma
+## 1 154.1414 0.8437991 5.049199
+## 2 154.4068 0.8984859 4.738400
+## 3 154.1965 0.9453762 5.248652
+## 4 154.8193 0.9084742 5.500789
+## 5 154.5535 0.9817791 5.031195
+```
+
+
+```r
+N <- 10
+dN <- d2[ 1:N , ]
+mN <- quap(
+alist(
+height ~ dnorm( mu , sigma ) ,
+mu <- a + b*( weight - mean(weight) ) ,
+a ~ dnorm( 178 , 20 ) ,
+b ~ dlnorm( 0 , 1 ) ,
+sigma ~ dunif( 0 , 50 )
+) , data=dN )
+post <- extract.samples( mN , n=20 )
+# display raw data and sample size
+plot( dN$weight , dN$height ,
+xlim=range(d2$weight) , ylim=range(d2$height) ,
+col=rangi2 , xlab="weight" , ylab="height" )
+mtext(concat("N = ",N))
+# plot the lines, with transparency
+for ( i in 1:20 )
+curve( post$a[i] + post$b[i]*(x-mean(dN$weight)) , col=col.alpha("black",0.3) , add=TRUE )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-48-1.png)<!-- -->
+
+```r
+N <- 200
+dN <- d2[ 1:N , ]
+mN <- quap(
+alist(
+height ~ dnorm( mu , sigma ) ,
+mu <- a + b*( weight - mean(weight) ) ,
+a ~ dnorm( 178 , 20 ) ,
+b ~ dlnorm( 0 , 1 ) ,
+sigma ~ dunif( 0 , 50 )
+) , data=dN )
+post <- extract.samples( mN , n=200 )
+# display raw data and sample size
+plot( dN$weight , dN$height ,
+xlim=range(d2$weight) , ylim=range(d2$height) ,
+col=rangi2 , xlab="weight" , ylab="height" )
+mtext(concat("N = ",N))
+# plot the lines, with transparency
+for ( i in 1:200)
+curve( post$a[i] + post$b[i]*(x-mean(dN$weight)) , col=col.alpha("black",0.3) , add=TRUE )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-49-1.png)<!-- -->
+
+
+```r
+post <- extract.samples( m4.3 )
+mu_at_50 <- post$a + post$b * ( 50 - xbar )
+head(mu_at_50)
+```
+
+```
+## [1] 159.0426 158.9604 159.3308 159.0246 159.1691 159.5586
+```
+
+
+```r
+dens( mu_at_50 , col=rangi2 , lwd=2 , xlab="mu|weight=50" )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-51-1.png)<!-- -->
+
+
+```r
+HPDI( mu_at_50 , prob=0.89 )
+```
+
+```
+##    |0.89    0.89| 
+## 158.5947 159.6931
+```
+
+```r
+mu <- link( m4.3 )
+str(mu)
+```
+
+```
+##  num [1:1000, 1:352] 157 157 157 157 157 ...
+```
+
+```r
+# define sequence of weights to compute predictions for
+# these values will be on the horizontal axis
+weight.seq <- seq( from=25 , to=70 , by=1 )
+# use link to compute mu
+# for each sample from posterior
+# and for each weight in weight.seq
+mu <- link( m4.3 , data=data.frame(weight=weight.seq) )
+str(mu)
+```
+
+```
+##  num [1:1000, 1:46] 137 136 137 137 137 ...
+```
+
+
+```r
+# use type="n" to hide raw data
+plot( height ~ weight , d2 , type="n" )
+# loop over samples and plot each mu value
+for ( i in 1:100 )
+points( weight.seq , mu[i,] , pch=16 , col=col.alpha(rangi2,0.1) )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-55-1.png)<!-- -->
+
+
+```r
+# summarize the distribution of mu
+mu.mean <- apply( mu , 2 , mean )
+mu.HPDI <- apply( mu , 2 , HPDI , prob=0.89 )
+```
+
+
+```r
+head(mu.mean)
+```
+
+```
+## [1] 136.5318 137.4361 138.3404 139.2446 140.1489 141.0532
+```
+
+```r
+head(mu.HPDI)[1:2,1]
+```
+
+```
+##    |0.89    0.89| 
+## 135.1873 137.9646
+```
+
+
+```r
+# plot raw data
+# fading out points to make line and interval more visible
+plot( height ~ weight , data=d2 , col=col.alpha(rangi2,0.5) )
+# plot the MAP line, aka the mean mu for each weight
+lines( weight.seq , mu.mean )
+# plot a shaded region for 89% HPDI
+shade( mu.HPDI , weight.seq )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-58-1.png)<!-- -->
+
+
+```r
+post <- extract.samples(m4.3)
+mu.link <- function(weight) post$a + post$b*( weight - xbar )
+weight.seq <- seq( from=25 , to=70 , by=1 )
+mu <- sapply( weight.seq , mu.link )
+mu.mean <- apply( mu , 2 , mean )
+mu.HPDI <- apply( mu , 2 , HPDI , prob=0.89 )
+head(mu.mean)
+```
+
+```
+## [1] 136.5491 137.4520 138.3549 139.2579 140.1608 141.0637
+```
+
+```r
+head(mu.HPDI)[1:2,1]
+```
+
+```
+##    |0.89    0.89| 
+## 135.1423 137.9682
+```
+
+
+```r
+sim.height <- sim( m4.3 , data=list(weight=weight.seq) )
+str(sim.height)
+```
+
+```
+##  num [1:1000, 1:46] 138 144 139 136 139 ...
+```
+
+
+```r
+height.PI <- apply( sim.height , 2 , PI , prob=0.89 )
+head(height.PI)
+```
+
+```
+##         [,1]     [,2]     [,3]     [,4]     [,5]     [,6]     [,7]
+## 5%  127.6512 129.1691 130.2508 130.5678 131.9568 132.3201 134.0336
+## 94% 145.0824 145.3429 146.6805 147.6497 148.3341 149.8035 149.8411
+##         [,8]     [,9]    [,10]    [,11]    [,12]    [,13]    [,14]
+## 5%  134.4692 135.8432 136.4607 137.6424 137.9358 138.8316 140.0405
+## 94% 150.9910 151.9537 152.7718 153.7050 155.0938 155.4840 156.5073
+##        [,15]    [,16]    [,17]    [,18]    [,19]    [,20]    [,21]
+## 5%  141.5253 141.3629 142.7540 144.1146 144.9818 145.1863 146.7766
+## 94% 157.2751 157.8450 158.8266 159.8925 160.8476 161.9155 163.0495
+##        [,22]    [,23]    [,24]    [,25]    [,26]    [,27]    [,28]
+## 5%  147.3989 148.2248 149.4522 150.5193 151.2827 152.2498 153.2253
+## 94% 163.7261 164.7606 165.3480 166.0224 167.4443 167.5369 168.9562
+##        [,29]    [,30]    [,31]    [,32]    [,33]    [,34]    [,35]
+## 5%  153.5363 154.7857 156.0254 156.5403 157.5447 158.0444 158.6507
+## 94% 169.6767 171.0531 172.0813 173.2055 173.1264 174.1012 175.4351
+##        [,36]    [,37]    [,38]    [,39]    [,40]    [,41]    [,42]   [,43]
+## 5%  160.0638 160.9353 161.3751 162.7827 163.7758 164.4495 165.3398 166.369
+## 94% 176.7705 177.0403 177.9956 179.0995 180.0570 180.9479 181.8325 182.971
+##        [,44]    [,45]    [,46]
+## 5%  166.6574 168.4606 169.1315
+## 94% 183.5176 184.9440 185.0179
+```
+
+
+```r
+# plot raw data
+plot( height ~ weight , d2 , col=col.alpha(rangi2,0.5) )
+# draw MAP line
+lines( weight.seq , mu.mean )
+# draw HPDI region for line
+shade( mu.HPDI , weight.seq )
+# draw PI region for simulated heights
+shade( height.PI , weight.seq )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-62-1.png)<!-- -->
+
+
+```r
+sim.height <- sim( m4.3 , data=list(weight=weight.seq) , n=1e4 )
+height.PI <- apply( sim.height , 2 , PI , prob=0.89 )
+# plot raw data
+plot( height ~ weight , d2 , col=col.alpha(rangi2,0.5) )
+# draw MAP line
+lines( weight.seq , mu.mean )
+# draw HPDI region for line
+shade( mu.HPDI , weight.seq )
+# draw PI region for simulated heights
+shade( height.PI , weight.seq )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-63-1.png)<!-- -->
+
+
+```r
+post <- extract.samples(m4.3)
+weight.seq <- 25:70
+sim.height <- sapply( weight.seq , function(weight)
+rnorm(
+n=nrow(post) ,
+mean=post$a + post$b*( weight - xbar ) ,
+sd=post$sigma ) )
+height.PI <- apply( sim.height , 2 , PI , prob=0.89 )
+# plot raw data
+plot( height ~ weight , d2 , col=col.alpha(rangi2,0.5) )
+# draw MAP line
+lines( weight.seq , mu.mean )
+# draw HPDI region for line
+shade( mu.HPDI , weight.seq )
+# draw PI region for simulated heights
+shade( height.PI , weight.seq )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-64-1.png)<!-- -->
+
+
+```r
+library(rethinking)
+data(Howell1)
+d <- Howell1
+str(d)
+```
+
+```
+## 'data.frame':	544 obs. of  4 variables:
+##  $ height: num  152 140 137 157 145 ...
+##  $ weight: num  47.8 36.5 31.9 53 41.3 ...
+##  $ age   : num  63 63 65 41 51 35 32 27 19 54 ...
+##  $ male  : int  1 0 0 1 0 1 0 1 0 1 ...
+```
+
+
+```r
+plot( d$height ~ d$weight)
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-66-1.png)<!-- -->
+
+
+```r
+d$weight_s <- ( d$weight - mean(d$weight) )/sd(d$weight)
+d$weight_s2 <- d$weight_s^2
+m4.5 <- quap(
+alist(
+height ~ dnorm( mu , sigma ) ,
+mu <- a + b1*weight_s + b2*weight_s2 ,
+a ~ dnorm( 178 , 20 ) ,
+b1 ~ dlnorm( 0 , 1 ) ,
+b2 ~ dnorm( 0 , 1 ) ,
+sigma ~ dunif( 0 , 50 )
+) ,
+data=d )
+precis( m4.5 )
+```
+
+```
+##             mean        sd       5.5%      94.5%
+## a     146.057416 0.3689754 145.467722 146.647110
+## b1     21.733062 0.2888889  21.271362  22.194762
+## b2     -7.803270 0.2741838  -8.241469  -7.365072
+## sigma   5.774473 0.1764650   5.492448   6.056498
+```
+
+
+```r
+weight.seq <- seq( from=-2.2 , to=2 , length.out=30 )
+pred_dat <- list( weight_s=weight.seq , weight_s2=weight.seq^2 )
+head(pred_dat)
+```
+
+```
+## $weight_s
+##  [1] -2.20000000 -2.05517241 -1.91034483 -1.76551724 -1.62068966
+##  [6] -1.47586207 -1.33103448 -1.18620690 -1.04137931 -0.89655172
+## [11] -0.75172414 -0.60689655 -0.46206897 -0.31724138 -0.17241379
+## [16] -0.02758621  0.11724138  0.26206897  0.40689655  0.55172414
+## [21]  0.69655172  0.84137931  0.98620690  1.13103448  1.27586207
+## [26]  1.42068966  1.56551724  1.71034483  1.85517241  2.00000000
+## 
+## $weight_s2
+##  [1] 4.8400000000 4.2237336504 3.6494173603 3.1170511296 2.6266349584
+##  [6] 2.1781688466 1.7716527943 1.4070868014 1.0844708680 0.8038049941
+## [11] 0.5650891795 0.3683234245 0.2135077289 0.1006420927 0.0297265161
+## [16] 0.0007609988 0.0137455410 0.0686801427 0.1655648038 0.3043995244
+## [21] 0.4851843044 0.7079191439 0.9726040428 1.2792390012 1.6278240190
+## [26] 2.0183590963 2.4508442331 2.9252794293 3.4416646849 4.0000000000
+```
+
+```r
+mu <- link( m4.5 , data=pred_dat )
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI , prob=0.89 )
+sim.height <- sim( m4.5 , data=pred_dat )
+height.PI <- apply( sim.height , 2 , PI , prob=0.89 )
+plot( height ~ weight_s , d , col=col.alpha(rangi2,0.5) )
+lines( weight.seq , mu.mean )
+shade( mu.PI , weight.seq )
+shade( height.PI , weight.seq )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-68-1.png)<!-- -->
+
+
+```r
+d$weight_s3 <- d$weight_s^3
+m4.6 <- quap(
+alist(
+height ~ dnorm( mu , sigma ) ,
+mu <- a + b1*weight_s + b2*weight_s2 + b3*weight_s3 ,
+a ~ dnorm( 178 , 20 ) ,
+b1 ~ dlnorm( 0 , 1 ) ,
+b2 ~ dnorm( 0 , 10 ) ,
+b3 ~ dnorm( 0 , 10 ) ,
+sigma ~ dunif( 0 , 50 )
+) ,
+data=d )
+weight.seq <- seq( from=-2.2 , to=2 , length.out=30 )
+pred_dat <- list( weight_s=weight.seq , weight_s2=weight.seq^2, weight_s3=weight.seq^3 )
+head(pred_dat)
+```
+
+```
+## $weight_s
+##  [1] -2.20000000 -2.05517241 -1.91034483 -1.76551724 -1.62068966
+##  [6] -1.47586207 -1.33103448 -1.18620690 -1.04137931 -0.89655172
+## [11] -0.75172414 -0.60689655 -0.46206897 -0.31724138 -0.17241379
+## [16] -0.02758621  0.11724138  0.26206897  0.40689655  0.55172414
+## [21]  0.69655172  0.84137931  0.98620690  1.13103448  1.27586207
+## [26]  1.42068966  1.56551724  1.71034483  1.85517241  2.00000000
+## 
+## $weight_s2
+##  [1] 4.8400000000 4.2237336504 3.6494173603 3.1170511296 2.6266349584
+##  [6] 2.1781688466 1.7716527943 1.4070868014 1.0844708680 0.8038049941
+## [11] 0.5650891795 0.3683234245 0.2135077289 0.1006420927 0.0297265161
+## [16] 0.0007609988 0.0137455410 0.0686801427 0.1655648038 0.3043995244
+## [21] 0.4851843044 0.7079191439 0.9726040428 1.2792390012 1.6278240190
+## [26] 2.0183590963 2.4508442331 2.9252794293 3.4416646849 4.0000000000
+## 
+## $weight_s3
+##  [1] -1.064800e+01 -8.680501e+00 -6.971646e+00 -5.503208e+00 -4.256960e+00
+##  [6] -3.214677e+00 -2.358131e+00 -1.669096e+00 -1.129346e+00 -7.206528e-01
+## [11] -4.247912e-01 -2.235342e-01 -9.865530e-02 -3.192784e-02 -5.125261e-03
+## [16] -2.099307e-05  1.611546e-03  1.799893e-02  6.736775e-02  1.679446e-01
+## [21]  3.379560e-01  5.956285e-01  9.591888e-01  1.446863e+00  2.076879e+00
+## [26]  2.867462e+00  3.836839e+00  5.003237e+00  6.384881e+00  8.000000e+00
+```
+
+```r
+mu <- link( m4.6 , data=pred_dat )
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI , prob=0.89 )
+sim.height <- sim( m4.6 , data=pred_dat )
+height.PI <- apply( sim.height , 2 , PI , prob=0.89 )
+plot( height ~ weight_s , d , col=col.alpha(rangi2,0.5) )
+lines( weight.seq , mu.mean )
+shade( mu.PI , weight.seq )
+shade( height.PI , weight.seq )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-69-1.png)<!-- -->
+
+
+```r
+plot( height ~ weight_s , d , col=col.alpha(rangi2,0.5) , xaxt="n" )
+at <- c(-2,-1,0,1,2)
+labels <- at*sd(d$weight) + mean(d$weight)
+axis( side=1 , at=at , labels=round(labels,1) )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-70-1.png)<!-- -->
+
+
+```r
+library(rethinking)
+data(cherry_blossoms)
+d <- cherry_blossoms
+precis(d)
+```
+
+```
+##                   mean          sd      5.5%      94.5%
+## year       1408.000000 350.8845964 867.77000 1948.23000
+## doy         104.540508   6.4070362  94.43000  115.00000
+## temp          6.141886   0.6636479   5.15000    7.29470
+## temp_upper    7.185151   0.9929206   5.89765    8.90235
+## temp_lower    5.098941   0.8503496   3.78765    6.37000
+##                                                                                                                           histogram
+## year                       <U+2587><U+2587><U+2587><U+2587><U+2587><U+2587><U+2587><U+2587><U+2587><U+2587><U+2587><U+2587><U+2581>
+## doy                                                                <U+2581><U+2582><U+2585><U+2587><U+2587><U+2583><U+2581><U+2581>
+## temp                                                               <U+2581><U+2583><U+2585><U+2587><U+2583><U+2582><U+2581><U+2581>
+## temp_upper <U+2581><U+2582><U+2585><U+2587><U+2587><U+2585><U+2582><U+2582><U+2581><U+2581><U+2581><U+2581><U+2581><U+2581><U+2581>
+## temp_lower <U+2581><U+2581><U+2581><U+2581><U+2581><U+2581><U+2581><U+2583><U+2585><U+2587><U+2583><U+2582><U+2581><U+2581><U+2581>
+```
+
+
+```r
+plot(d$temp ~ d$year)
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-72-1.png)<!-- -->
+
+
+```r
+d2 <- d[ complete.cases(d$temp) , ] # complete cases on temp
+num_knots <- 15
+knot_list <- quantile( d2$year , probs=seq(0,1,length.out=num_knots))
+knot_list
+```
+
+```
+##        0% 7.142857% 14.28571% 21.42857% 28.57143% 35.71429% 42.85714% 
+##  839.0000  937.2143 1017.4286 1097.6429 1177.8571 1258.0714 1338.2857 
+##       50% 57.14286% 64.28571% 71.42857% 78.57143% 85.71429% 92.85714% 
+## 1418.5000 1498.7143 1578.9286 1659.1429 1739.3571 1819.5714 1899.7857 
+##      100% 
+## 1980.0000
+```
+
+
+```r
+library(splines)
+B <- bs(d2$year,
+knots=knot_list[-c(1,num_knots)] ,
+degree=3 , intercept=TRUE )
+head(B)
+```
+
+```
+##              1          2            3            4 5 6 7 8 9 10 11 12 13
+## [1,] 1.0000000 0.00000000 0.0000000000 0.000000e+00 0 0 0 0 0  0  0  0  0
+## [2,] 0.9697645 0.03006521 0.0001700700 2.206279e-07 0 0 0 0 0  0  0  0  0
+## [3,] 0.9401447 0.05917776 0.0006757944 1.765023e-06 0 0 0 0 0  0  0  0  0
+## [4,] 0.9111342 0.08734939 0.0015104442 5.956954e-06 0 0 0 0 0  0  0  0  0
+## [5,] 0.8827268 0.11459183 0.0026672909 1.412019e-05 0 0 0 0 0  0  0  0  0
+## [6,] 0.8549160 0.14091682 0.0041396056 2.757849e-05 0 0 0 0 0  0  0  0  0
+##      14 15 16 17
+## [1,]  0  0  0  0
+## [2,]  0  0  0  0
+## [3,]  0  0  0  0
+## [4,]  0  0  0  0
+## [5,]  0  0  0  0
+## [6,]  0  0  0  0
+```
+
+
+```r
+plot( NULL , xlim=range(d2$year) , ylim=c(0,1) , xlab="year" , ylab="basis value" )
+for ( i in 1:ncol(B) ) lines( d2$year , B[,i] )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-75-1.png)<!-- -->
+
+
+```r
+m4.7 <- quap(
+alist(
+T ~ dnorm( mu , sigma ) ,
+mu <- a + B %*% w ,
+a ~ dnorm(6,10),
+w ~ dnorm(0,1),
+sigma ~ dexp(1)
+),
+data=list( T=d2$temp , B=B ) ,
+start=list( w=rep( 0 , ncol(B) ) ) )
+precis(m4.7,depth=2)
+```
+
+```
+##              mean          sd       5.5%      94.5%
+## w[1]   0.09748016 0.267673960 -0.3303145  0.5252748
+## w[2]   0.23888166 0.279071087 -0.2071278  0.6848912
+## w[3]   1.20070218 0.271684981  0.7664971  1.6349072
+## w[4]  -0.82198060 0.259287202 -1.2363716 -0.4075896
+## w[5]   0.10175824 0.257448206 -0.3096937  0.5132102
+## w[6]  -1.40469550 0.257092976 -1.8155797 -0.9938113
+## w[7]   1.15649849 0.256907770  0.7459103  1.5670867
+## w[8]  -1.91586141 0.256912386 -2.3264570 -1.5052658
+## w[9]   2.34740542 0.256876318  1.9368674  2.7579434
+## w[10] -2.32070380 0.256924578 -2.7313189 -1.9100887
+## w[11]  0.93548425 0.256914797  0.5248848  1.3460837
+## w[12] -1.61488213 0.257200551 -2.0259383 -1.2038260
+## w[13]  0.18054002 0.257668643 -0.2312642  0.5923443
+## w[14] -1.24146903 0.260466376 -1.6577446 -0.8251935
+## w[15]  0.03146167 0.270382477 -0.4006618  0.4635851
+## w[16]  0.99681372 0.274756838  0.5576992  1.4359282
+## w[17]  2.03579025 0.268397012  1.6068400  2.4647405
+## a      6.32227521 0.242765640  5.9342888  6.7102616
+## sigma  0.34423760 0.007262337  0.3326310  0.3558442
+```
+
+
+```r
+post <- extract.samples(m4.7)
+w <- apply( post$w , 2 , mean )
+plot( NULL , xlim=range(d2$year) , ylim=c(-2,2) ,
+xlab="year" , ylab="basis * weight" )
+for ( i in 1:ncol(B) ) lines( d2$year , w[i]*B[,i] )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-77-1.png)<!-- -->
+
+
+```r
+mu <- link( m4.7 )
+mu_PI <- apply(mu,2,PI,0.97)
+plot( d2$year , d2$temp , col=col.alpha(rangi2,0.3) , pch=16 )
+shade( mu_PI , d2$year , col=col.alpha("black",0.5) )
+```
+
+![](Ch4_Notes_files/figure-html/unnamed-chunk-78-1.png)<!-- -->
+
+
 
