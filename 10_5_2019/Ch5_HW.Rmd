@@ -22,7 +22,7 @@ editor_options:
 $$
 time2phd_i \sim (\mu_i, \sigma) \\
 mu_i = \alpha + \beta Funding*Funding_i + \beta Size*Size_i \\
-\alpha \sim Norm(0,0.2) \\
+\alpha \sim Norm(6,2) \\
 \beta Funding \sim Norm(0,0.5) \\
 \beta Size \sim Norm(0,0.5 \\
 \sigma \sim exp(1) \\
