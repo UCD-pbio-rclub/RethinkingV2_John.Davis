@@ -7,11 +7,10 @@ output:
     keep_md: yes
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
-```{r, echo=T, results='hide', message=F, warning=F}
+
+
+```r
 library(tidyverse)
 library(rethinking)
 ```
@@ -39,7 +38,8 @@ Model selection you are picking the model with the best criterion value (lowest)
 
 ## 6M3. When comparing models with an information criterion, why must all models be fit to exactly the same observations? What would happen to the information criterion values, if the models were fit to different numbers of observations? Perform some experiments, if you are not sure.
 
-```{r}
+
+```r
 data(cars)
 set.seed(120)
 m1 <- quap(
@@ -64,15 +64,56 @@ m2 <- quap(
   data=cars
   )
 WAIC(m1)
+```
+
+```
+## [1] 213.8275
+## attr(,"lppd")
+## [1] -99.74424
+## attr(,"pWAIC")
+## [1] 7.16952
+## attr(,"se")
+## [1] 22.90026
+```
+
+```r
 WAIC(m2)
+```
+
+```
+## [1] 423.4783
+## attr(,"lppd")
+## [1] -206.969
+## attr(,"pWAIC")
+## [1] 4.770138
+## attr(,"se")
+## [1] 17.79706
+```
+
+```r
 compare(m1,m2)
+```
+
+```
+## Warning in compare(m1, m2): Different numbers of observations found for at least two models.
+## Information criteria only valid for comparing models fit to exactly same observations.
+## Number of observations for each model:
+## m1 25 
+## m2 50
+```
+
+```
+##        WAIC    pWAIC    dWAIC       weight       SE      dSE
+## m1 214.7377 7.535869   0.0000 1.000000e+00 23.82693       NA
+## m2 422.8115 4.476055 208.0739 6.566546e-46 17.26235 20.85066
 ```
 
 More observations will lead higher WAIC making models with less observations look better.
 
 ## 6M4. What happens to the effective number of parameters, as measured by DIC or WAIC, as a prior becomes more concentrated? Why? Perform some experiments, if you are not sure.
 
-```{r}
+
+```r
 set.seed(120)
 m1 <- quap(
   alist(
@@ -96,8 +137,40 @@ m2 <- quap(
   data=cars
   )
 WAIC(m1)
+```
+
+```
+## [1] 427.6125
+## attr(,"lppd")
+## [1] -210.1153
+## attr(,"pWAIC")
+## [1] 3.690952
+## attr(,"se")
+## [1] 17.88879
+```
+
+```r
 WAIC(m2)
+```
+
+```
+## [1] 423.4783
+## attr(,"lppd")
+## [1] -206.969
+## attr(,"pWAIC")
+## [1] 4.770138
+## attr(,"se")
+## [1] 17.79706
+```
+
+```r
 compare(m1,m2)
+```
+
+```
+##        WAIC    pWAIC    dWAIC    weight       SE      dSE
+## m2 422.8115 4.476055 0.000000 0.8951167 17.26235       NA
+## m1 427.0997 3.404671 4.288211 0.1048833 17.62291 5.782902
 ```
 
 pWAIC becomes smaller as more noise is filtered out due to being skeptic of prior values.
