@@ -179,24 +179,81 @@ sapply( list(m7.1,m7.2,m7.3,m7.4,m7.5,m7.6) , function(m) sum(lppd(m)) )
 
 
 ```{r}
-N <- 20
-kseq <- 1:5
-dev <- sapply( kseq , function(k) {
-  print(k);
-  r <- replicate( 1e4 , sim_train_test( N=N, k=k ) );
-  c( mean(r[1,]) , mean(r[2,]) , sd(r[1,]) , sd(r[2,]) )
-} )
-r <- mcreplicate( 1e4 , sim_train_test( N=N, k=k ) , mc.cores=7 )
-plot( 1:5 , dev[1,] , ylim=c( min(dev[1:2,])-5 , max(dev[1:2,])+10 ) ,
-xlim=c(1,5.1) , xlab="number of parameters" , ylab="deviance" ,
-pch=16 , col=rangi2 )
-mtext( concat( "N = ",N ) )
-points( (1:5)+0.1 , dev[2,] )
-for ( i in kseq ) {
-pts_in <- dev[1,i] + c(-1,+1)*dev[3,i]
-pts_out <- dev[2,i] + c(-1,+1)*dev[4,i]
-lines( c(i,i) , pts_in , col=rangi2 )
-lines( c(i,i)+0.1 , pts_out )
-}
+# N <- 20
+# kseq <- 1:5
+# dev <- sapply( kseq , function(k) {
+#   print(k);
+#   r <- replicate( 1e4 , sim_train_test( N=N, k=k ) );
+#   c( mean(r[1,]) , mean(r[2,]) , sd(r[1,]) , sd(r[2,]) )
+# } )
+# r <- mcreplicate( 1e4 , sim_train_test( N=N, k=k ) , mc.cores=1 )
+# plot( 1:5 , dev[1,] , ylim=c( min(dev[1:2,])-5 , max(dev[1:2,])+10 ) ,
+# xlim=c(1,5.1) , xlab="number of parameters" , ylab="deviance" ,
+# pch=16 , col=rangi2 )
+# mtext( concat( "N = ",N ) )
+# points( (1:5)+0.1 , dev[2,] )
+# for ( i in kseq ) {
+# pts_in <- dev[1,i] + c(-1,+1)*dev[3,i]
+# pts_out <- dev[2,i] + c(-1,+1)*dev[4,i]
+# lines( c(i,i) , pts_in , col=rangi2 )
+# lines( c(i,i)+0.1 , pts_out )
+# }
 ```
 
+## 7.3. Golem Taming: Regularization
+## 7.4. Predicting predictive accuracy
+### 7.4.1. Cross-validation
+### 7.4.2. Information criteria
+```{r}
+data(cars)
+m <- quap(
+  alist(
+    dist ~ dnorm(mu,sigma),
+    mu <- a + b*speed,
+    a ~ dnorm(0,100),
+    b ~ dnorm(0,10),
+    sigma ~ dexp(1)
+    ),
+  data=cars
+  )
+set.seed(94)
+post <- extract.samples(m,n=1000)
+```
+
+```{r}
+n_samples <- 1000
+logprob <- sapply( 1:n_samples ,
+function(s) {
+mu <- post$a[s] + post$b[s]*cars$speed
+dnorm( cars$dist , mu , post$sigma[s] , log=TRUE )
+} )
+```
+
+```{r}
+n_cases <- nrow(cars)
+lppd <- sapply( 1:n_cases , function(i) log_sum_exp(logprob[i,]) - log(n_samples) )
+```
+
+```{r}
+sum(lppd)
+```
+
+```{r}
+pWAIC <- sapply( 1:n_cases , function(i) var(logprob[i,]) )
+sum(pWAIC)
+```
+
+```{r}
+-2*( sum(lppd) - sum(pWAIC) )
+```
+
+```{r}
+WAIC(m)
+```
+
+```{r}
+waic_vec <- -2*( lppd - pWAIC )
+sqrt( n_cases*var(waic_vec) )
+```
+
+### 7.4.3. Comparing LOOCV, LOOIS, and WAIC
