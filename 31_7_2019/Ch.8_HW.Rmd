@@ -137,7 +137,7 @@ mtext("Non-African nations with Seychelles")
 plot( dd.small.A1$rugged_std , dd.small.A1$log_gdp_std , pch=16 , col=rangi2 ,
       xlab="ruggedness (standardized)" , ylab="log GDP (as proportion of mean)" ,
       xlim=c(0,1) )
-mu <- link( H3A , data=data.frame( cont_africa=1 , rugged=rugged_seq ) )
+mu <- link( H3B , data=data.frame( cont_africa=1 , rugged=rugged_seq ) )
 mu_mean <- apply( mu , 2 , mean )
 mu_ci <- apply( mu , 2 , PI , prob=0.97 )
 lines( rugged_seq , mu_mean , lwd=2 )
@@ -147,7 +147,7 @@ mtext("African nations without Seychelles")
 plot( dd.A0$rugged_std , dd.A0$log_gdp_std , pch=16 , col=rangi2 ,
       xlab="ruggedness (standardized)" , ylab="log GDP (as proportion of mean)" ,
       xlim=c(0,1) )
-mu <- link( H3A , data=data.frame( cont_africa=0 , rugged=rugged_seq ) )
+mu <- link( H3B , data=data.frame( cont_africa=0 , rugged=rugged_seq ) )
 mu_mean <- apply( mu , 2 , mean )
 mu_ci <- apply( mu , 2 , PI , prob=0.97 )
 lines( rugged_seq , mu_mean , lwd=2 )
@@ -239,16 +239,17 @@ T1 <- quap(
   ),
   data = dat
 )
-# T2 <- quap(
-#   alist(
-#     hyp_std ~ dnorm(mu,sigma),
-#     mu <- a[species_factor] + bT[species_factor]*trt_factor,
-#     a[species_factor] ~ dnorm(0,.5),
-#     bT ~ dnorm(0,1),
-#     sigma ~ dexp(1)
-#   ),
-#   data = dat
-# )
-# 
-# compare(T1,T2)
+T2 <- quap(
+  alist(
+    hyp_std ~ dnorm(mu,sigma),
+    mu <- a[species_factor] + bT[species_factor]*trt_factor,
+    a[species_factor] ~ dnorm(0,.5),
+    bT[species_factor] ~ dnorm(0,1),
+    sigma ~ dexp(1)
+  ),
+  data = dat
+)
+precis(T1, depth = 2)
+precis(T2, depth = 2)
+compare(T1,T2)
 ```
