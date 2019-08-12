@@ -1,0 +1,262 @@
+---
+title: "Ch.8 HW"
+author: "John D."
+date: "August 14, 2019"
+output: 
+  html_document: 
+  keep_md: yes
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(rethinking)
+```
+
+### 7M1. Recall the tulips example from the chapter. Suppose another set of treatments adjusted the temperature in the greenhouse over two levels: cold and hot. The data in the chapter were collected at the cold temperature. You find none of the plants grown under the hot temperature developed any blooms at all, regardless of the water and shade levels. Can you explain this result in terms of interactions between water, shade, and temperature?
+
+Both water and light are needed to create blooms. With more light and more water, the number of blooms increases. If there is no water or no light, no blooms will be created. Additionally this interaction between water and light is conditional on temperature where no blooms with develop under any combination of water and light conditions if the temperature is too high
+
+### 7M2. Can you invent a regression equation that would make the bloom size zero, whenever the temperature is hot?
+
+$$
+blooms \sim (intercept + shade*water)*temperature \\
+  temperature = ifelse\ temp < 25^*C,\ 1,\ 0
+$$
+
+### 7H1. Return to the data(tulips) example in the chapter. Now include the bed variable as a predictor in the interaction model. Don't interact bed with the other predictors; just include it as a main effect. Note that bed is categorical. So to use it properly, you will need to either construct dummy variables or rather an index variable, as explained in Chapter 8.
+
+```{r}
+data(tulips)
+d <- tulips
+d$blooms_std <- d$blooms / max(d$blooms)
+d$water_cent <- d$water - mean(d$water)
+d$shade_cent <- d$shade - mean(d$shade)
+d$bed_idx <- as.numeric(d$bed)
+```
+
+```{r}
+set.seed(537)
+h2.1 <- quap(
+  alist(
+    blooms_std ~ dnorm( mu , sigma ) ,
+    mu <- a + bw*water_cent + bs*shade_cent + bws*water_cent*shade_cent ,
+    a ~ dnorm( 0.5 , 0.25 ) ,
+    bw ~ dnorm( 0 , 0.25 ) ,
+    bs ~ dnorm( 0 , 0.25 ) ,
+    bws ~ dnorm( 0 , 0.25 ) ,
+    sigma ~ dexp( 1 )
+  ) ,
+  data=d )
+h2.2 <- quap(
+  alist(
+    blooms_std ~ dnorm( mu , sigma ) ,
+    mu <- a[bed_idx] +  bw*water_cent + bs*shade_cent + bws*water_cent*shade_cent ,
+    a[bed_idx] ~ dnorm( 0.5 , 0.25 ) ,
+    bw ~ dnorm( 0 , 0.25 ) ,
+    bs ~ dnorm( 0 , 0.25 ) ,
+    bws ~ dnorm( 0 , 0.25 ) ,
+    sigma ~ dexp( 1 )
+  ) ,
+  data=d )
+coeftab(h2.1,h2.2)
+compare(h2.1,h2.2)
+```
+
+
+
+### 7H2. Use WAIC to compare the model from 7H1 to a model that omits bed. What do you infer from this comparison? Can you reconcile the WAIC results with the posterior distribution of the bed coefficients?
+
+```{r}
+compare(h2.1,h2.2)
+a <- extract.samples(h2.2)
+par(mfrow=c(1,1))
+dens(a$a[,1],col="black")
+dens(a$a[,2],col="blue", add = TRUE)
+dens(a$a[,3],col="red", add = TRUE)
+```
+
+Including bed led to a lower WAIC and it has more weight, but the other model is well within the range of the difference. It looks like bed A had on average less blooms than beds B and C. This can also be seen in the `coeftab` table
+
+### 7H4. The values in data(nettle) are data on language diversity in 74 nations.130 The meaning of each column is given below,  
+  (1) country: Name of the country
+  (2) num.lang: Number of recognized languages spoken
+  (3) area: Area in square kilometers
+  (4) k.pop: Population, in thousands
+  (5) num.stations: Number of weather stations that provided data for the next two columns
+  (6) mean.growing.season: Average length of growing season, in months
+  (7) sd.growing.season: Standard deviation of length of growing season, in months
+  
+### Use these data to evaluate the hypothesis that language diversity is partly a product of food security. The notion is that, in productive ecologies, people don't need large social networks to buffer them against risk of food shortfalls. This means ethnic groups can be smaller and more self-sufficient, leading to more languages per capita. In contrast, in a poor ecology, there is more subsistence risk, and so human societies have adapted by building larger networks of mutual obligation to provide food insurance. This in turn creates social forces that help prevent languages from diversifying. Specifically, you will try to model the number of languages per capita as the outcome variable:
+
+```{r}
+data(nettle)
+d <- nettle
+d$lang.per.cap <- d$num.lang / d$k.pop
+d$lang.per.cap.log <- log(d$lang.per.cap)
+```
+
+### Use the logarithm of this new variable as your regression outcome. (A count model would be better here, but you'll learn those later, in Chapter 11.) This problem is open ended, allowing you to decide how you address the hypotheses and the uncertain advice the modeling provides. If you think you need to use WAIC anyplace, please do. If you think you need certain priors, argue for them. If you think you need to plot predictions in a certain way, please do. Just try to honestly evaluate the main effects of both mean.growing.season and sd.growing.season, as well as their two-way interaction, as outlined in parts (a), (b), and (c) below. If you are not sure which approach to use, try several.
+
+  (a) Evaluate the hypothesis that language diversity, as measured by log(lang.per.cap), is positively associated with the average length of the growing season, mean.growing.season. Consider log(area) in your regression(s) as a covariate (not an interaction). Interpret your results.
+  
+```{r}
+d$area.log <- log(d$area)
+d$area.log.c <- d$area.log - mean(d$area.log)
+d$mean.growing.season.c <- d$mean.growing.season - mean(d$mean.growing.season)
+d$sd.growing.season.c <- d$sd.growing.season - mean(d$sd.growing.season)
+summary(d)
+round(apply(d, 2, sd),2)
+set.seed(678)
+h4.a1 <- quap(
+  alist(
+    lang.per.cap.log ~ dnorm( mu , sigma ),
+    mu <- a + bg*mean.growing.season.c,
+    a ~ dnorm( -5 , 1 ),
+    bg ~ dnorm(0,3),
+    sigma ~ dunif(0,5 )
+  ) ,
+  data=d )
+precis(h4.a1)
+gs_seq <- seq(-8,8,.1)
+mu <- link(h4.a1, data = data.frame(mean.growing.season.c = gs_seq))
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI, prob = 0.97)
+plot(lang.per.cap.log ~ mean.growing.season.c, data = d, col = rangi2)
+lines(gs_seq, mu.mean)
+shade(mu.PI, gs_seq)
+```
+
+```{r}
+set.seed(547)
+h4.a2 <- quap(
+  alist(
+    lang.per.cap.log ~ dnorm( mu , sigma ),
+    mu <- a + bg*mean.growing.season.c + ba*area.log.c,
+    a ~ dnorm( -5 , 1 ),
+    bg ~ dnorm(0,3),
+    ba ~ dnorm(0, 1.5),
+    sigma ~ dunif(0,5 )
+  ) ,
+  data=d )
+precis(h4.a2)
+mu <- link(h4.a2, data = data.frame(mean.growing.season.c = gs_seq, area.log.c = 0))
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI, prob = 0.97)
+plot(lang.per.cap.log ~ mean.growing.season.c, data = d, col = rangi2)
+lines(gs_seq, mu.mean)
+shade(mu.PI, gs_seq)
+```
+
+```{r}
+coeftab(h4.a1,h4.a2)
+compare(h4.a1,h4.a2)
+```
+
+It appears that there is a positive association between growing season length and number of languages. Adding area to the model did not appear to have a significant effect.
+  
+  (b) Now evaluate the hypothesis that language diversity is negatively associated with the standard deviation of length of growing season, sd.growing.season. This hypothesis follows from uncertainty in harvest favoring social insurance through larger social networks and therefore fewer languages. Again, consider log(area) as a covariate (not an interaction). Interpret your results.
+  
+```{r}
+set.seed(4523)
+h4.b1 <- quap(
+  alist(
+    lang.per.cap.log ~ dnorm( mu , sigma ),
+    mu <- a + bg*sd.growing.season.c,
+    a ~ dnorm( -5 , 1 ),
+    bg ~ dnorm(0,1),
+    sigma ~ dunif(0,5 )
+  ) ,
+  data=d )
+precis(h4.b1)
+gs_seq <- seq(-5,5,.1)
+mu <- link(h4.b1, data = data.frame(sd.growing.season.c = gs_seq))
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI, prob = 0.97)
+plot(lang.per.cap.log ~ sd.growing.season.c, data = d, col = rangi2)
+lines(gs_seq, mu.mean)
+shade(mu.PI, gs_seq)
+```
+
+```{r}
+set.seed(867)
+h4.b2 <- quap(
+  alist(
+    lang.per.cap.log ~ dnorm( mu , sigma ),
+    mu <- a + bg*sd.growing.season.c + ba*area.log.c,
+    a ~ dnorm( -5 , 1 ),
+    bg ~ dnorm(0,1),
+    ba ~ dnorm(0, 1.5),
+    sigma ~ dunif(0,5 )
+  ) ,
+  data=d )
+precis(h4.b2)
+mu <- link(h4.b2, data = data.frame(sd.growing.season.c = gs_seq, area.log.c = 0))
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI, prob = 0.97)
+plot(lang.per.cap.log ~ sd.growing.season.c, data = d, col = rangi2)
+lines(gs_seq, mu.mean)
+shade(mu.PI, gs_seq)
+```
+
+```{r}
+coeftab(h4.b1,h4.b2)
+compare(h4.b1,h4.b2)
+```
+
+Standard deviation of growing season length appears to be negatively associated with number of languages. Adding area did not do much to change the model. Coefficient for growing season also contains 0 in its plausibility range.
+  
+  (c) Finally, evaluate the hypothesis that mean.growing.season and sd.growing.season interact to synergistically reduce language diversity. The idea is that, in nations with longer average growing seasons, high variance makes storage and redistribution even more important than it would be otherwise. That way, people can cooperate to preserve and protect windfalls to be used during the droughts. These forces in turn may lead to greater social integration and fewer languages.
+  
+```{r}
+set.seed(1867)
+h4.c1 <- quap(
+  alist(
+    lang.per.cap.log ~ dnorm( mu , sigma ),
+    mu <- a + bsg*sd.growing.season.c + bmg*mean.growing.season.c + bsm*mean.growing.season.c*sd.growing.season.c,
+    a ~ dnorm( -5 , 1 ),
+    bsg ~ dnorm(0,1),
+    bmg ~ dnorm(0, 3),
+    bsm ~ dnorm(0,1), 
+    sigma ~ dunif(0,5 )
+  ) ,
+  data=d )
+precis(h4.c1)
+```
+
+```{r}
+coeftab(h4.a1,h4.a2,h4.b1,h4.b2,h4.c1)
+compare(h4.a1,h4.a2,h4.b1,h4.b2,h4.c1)
+```
+
+```{r}
+### Controlling for sd
+d$sd_group <- cut(d$sd.growing.season.c,3, include.lowest = T, labels = F)
+d$mg_group <- cut(d$mean.growing.season.c,3, include.lowest = T, labels = F)
+par(mfrow=c(3,1)) # 3 plots in 1 row
+for ( s in 1:3 ) {
+  idx <- which( d$sd_group==s )
+  plot( d$mean.growing.season.c[idx] , d$lang.per.cap.log[idx] , xlim=c(-8,8) , ylim=c(-10,0) ,
+  xlab="growing season length" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
+  mu <- link( h4.c1 , data=data.frame( mean.growing.season.c=-8:8, sd.growing.season.c =  s))
+  for ( i in 1:25 ) lines( -8:8 , mu[i,] , col=col.alpha("black",0.3) )
+  mtext(paste("Language by season length, SD group =", s))
+}
+```
+
+```{r}
+### Controlling for length
+par(mfrow=c(3,1)) # 3 plots in 1 row
+for ( s in 1:3 ) {
+  idx <- which( d$mg_group==s )
+  plot( d$sd.growing.season.c[idx] , d$lang.per.cap.log[idx] , xlim=c(-5,5) , ylim=c(-10,0) ,
+  xlab="growing season sd" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
+  mu <- link( h4.c1 , data=data.frame( sd.growing.season.c=-5:5, mean.growing.season.c =  s))
+  for ( i in 1:25 ) lines( -5:5 , mu[i,] , col=col.alpha("black",0.3) )
+  mtext(paste("Language by SD, length group =", s))
+}
+```
+
