@@ -540,7 +540,7 @@ for ( s in 1:3 ) {
   idx <- which( d$sd_group==s )
   plot( d$mean.growing.season.c[idx] , d$lang.per.cap.log[idx] , xlim=c(-8,8) , ylim=c(-10,0) ,
   xlab="growing season length" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
-  mu <- link( h4.c1 , data=data.frame( mean.growing.season.c=-8:8, sd.growing.season.c =  s))
+  mu <- link( h4.c1 , data=data.frame( mean.growing.season.c=-8:8, sd.growing.season.c =  mean(d$sd.growing.season.c[idx])))
   for ( i in 1:25 ) lines( -8:8 , mu[i,] , col=col.alpha("black",0.3) )
   lines(-8:8, mu[26,], col="red")
   mtext(paste("Language by season length, SD group =", s))
@@ -557,7 +557,7 @@ for ( s in 1:3 ) {
   idx <- which( d$mg_group==s )
   plot( d$sd.growing.season.c[idx] , d$lang.per.cap.log[idx] , xlim=c(-5,5) , ylim=c(-10,0) ,
   xlab="growing season sd" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
-  mu <- link( h4.c1 , data=data.frame( sd.growing.season.c=-5:5, mean.growing.season.c =  s))
+  mu <- link( h4.c1 , data=data.frame( sd.growing.season.c=-5:5, mean.growing.season.c =  mean(d$mean.growing.season.c[idx])))
   for ( i in 1:25 ) lines( -5:5 , mu[i,] , col=col.alpha("black",0.3) )
   lines(-5:5, mu[26,], col="red")
   mtext(paste("Language by SD, length group =", s))
@@ -581,7 +581,7 @@ for ( s in 1:9 ) {
   idx <- which( d$sd_group==s )
   plot( d$mean.growing.season.c[idx] , d$lang.per.cap.log[idx] , xlim=c(-8,8) , ylim=c(-10,0) ,
   xlab="growing season length" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
-  mu <- link( h4.c1 , data=data.frame( mean.growing.season.c=-8:8, sd.growing.season.c =  s))
+  mu <- link( h4.c1 , data=data.frame( mean.growing.season.c=-8:8, sd.growing.season.c =  mean(d$sd.growing.season.c[idx])))
   for ( i in 1:25 ) lines( -8:8 , mu[i,] , col=col.alpha("black",0.3) )
   lines(-8:8, mu[26,], col="red")
   mtext(paste("Language by season length, SD group =", s))
@@ -598,7 +598,7 @@ for ( s in 1:9 ) {
   idx <- which( d$mg_group==s )
   plot( d$sd.growing.season.c[idx] , d$lang.per.cap.log[idx] , xlim=c(-5,5) , ylim=c(-10,0) ,
   xlab="growing season sd" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
-  mu <- link( h4.c1 , data=data.frame( sd.growing.season.c=-5:5, mean.growing.season.c =  s))
+  mu <- link( h4.c1 , data=data.frame( sd.growing.season.c=-5:5, mean.growing.season.c =  mean(d$mean.growing.season.c[idx])))
   for ( i in 1:25 ) lines( -5:5 , mu[i,] , col=col.alpha("black",0.3) )
   lines(-5:5, mu[26,], col="red")
   mtext(paste("Language by SD, length group =", s))
