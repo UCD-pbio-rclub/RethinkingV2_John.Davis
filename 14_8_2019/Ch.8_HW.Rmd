@@ -233,7 +233,7 @@ coeftab(h4.a1,h4.a2,h4.b1,h4.b2,h4.c1)
 compare(h4.a1,h4.a2,h4.b1,h4.b2,h4.c1)
 ```
 
-```{r fig.height=10, fig.width=10}
+```{r fig.height=20, fig.width=20}
 ### Controlling for sd
 d$sd_group <- cut(d$sd.growing.season.c,3, include.lowest = T, labels = F)
 d$mg_group <- cut(d$mean.growing.season.c,3, include.lowest = T, labels = F)
@@ -249,7 +249,7 @@ for ( s in 1:3 ) {
 }
 ```
 
-```{r fig.height=10, fig.width=10}
+```{r fig.height=20, fig.width=20}
 ### Controlling for length
 par(mfrow=c(3,1)) # 3 plots in 1 row
 for ( s in 1:3 ) {
@@ -268,7 +268,7 @@ Higher mean growing season length leads to more languages and higher deviation i
 
 ## Expand to more points
 
-```{r fig.height=10, fig.width=10}
+```{r fig.height=20, fig.width=20}
 ### Controlling for sd
 d$sd_group <- cut(d$sd.growing.season.c,9, include.lowest = T, labels = F)
 d$mg_group <- cut(d$mean.growing.season.c,9, include.lowest = T, labels = F)
@@ -284,7 +284,7 @@ for ( s in 1:9 ) {
 }
 ```
 
-```{r fig.height=10, fig.width=10}
+```{r fig.height=20, fig.width=20}
 ### Controlling for length
 par(mfrow=c(3,3)) # 3 plots in 1 row
 for ( s in 1:9 ) {
