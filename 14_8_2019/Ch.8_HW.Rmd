@@ -4,7 +4,7 @@ author: "John D."
 date: "August 14, 2019"
 output: 
   html_document: 
-  keep_md: yes
+    keep_md: yes
 ---
   
 ```{r setup, include=FALSE}
@@ -18,7 +18,7 @@ library(rethinking)
 
 ### 7M1. Recall the tulips example from the chapter. Suppose another set of treatments adjusted the temperature in the greenhouse over two levels: cold and hot. The data in the chapter were collected at the cold temperature. You find none of the plants grown under the hot temperature developed any blooms at all, regardless of the water and shade levels. Can you explain this result in terms of interactions between water, shade, and temperature?
 
-Both water and light are needed to create blooms. With more light and more water, the number of blooms increases. If there is no water or no light, no blooms will be created. Additionally this interaction between water and light is conditional on temperature where no blooms with develop under any combination of water and light conditions if the temperature is too high
+Both water and light are needed to create blooms. With more light and more water, the number of blooms increases. If there is no water or no light, no blooms will be created. Additionally this interaction between water and light is conditional on temperature where no blooms will  develop under any combination of water and light conditions if the temperature is too high.
 
 ### 7M2. Can you invent a regression equation that would make the bloom size zero, whenever the temperature is hot?
 
@@ -79,7 +79,7 @@ dens(a$a[,2],col="blue", add = TRUE)
 dens(a$a[,3],col="red", add = TRUE)
 ```
 
-Including bed led to a lower WAIC and it has more weight, but the other model is well within the range of the difference. It looks like bed A had on average less blooms than beds B and C. This can also be seen in the `coeftab` table
+Including bed led to a lower WAIC and it has more weight, but the other model is well within the range of the error difference. It looks like bed A had on average less blooms than beds B and C. This can also be seen in the `coeftab` table
 
 ### 7H4. The values in data(nettle) are data on language diversity in 74 nations.130 The meaning of each column is given below,  
   (1) country: Name of the country
@@ -104,6 +104,7 @@ d$lang.per.cap.log <- log(d$lang.per.cap)
   (a) Evaluate the hypothesis that language diversity, as measured by log(lang.per.cap), is positively associated with the average length of the growing season, mean.growing.season. Consider log(area) in your regression(s) as a covariate (not an interaction). Interpret your results.
   
 ```{r}
+### More negative the log number, the less languages per cap
 d$area.log <- log(d$area)
 d$area.log.c <- d$area.log - mean(d$area.log)
 d$mean.growing.season.c <- d$mean.growing.season - mean(d$mean.growing.season)
@@ -117,7 +118,7 @@ h4.a1 <- quap(
     mu <- a + bg*mean.growing.season.c,
     a ~ dnorm( -5 , 1 ),
     bg ~ dnorm(0,3),
-    sigma ~ dunif(0,5 )
+    sigma ~ dexp( 1 )
   ) ,
   data=d )
 precis(h4.a1)
@@ -139,7 +140,7 @@ h4.a2 <- quap(
     a ~ dnorm( -5 , 1 ),
     bg ~ dnorm(0,3),
     ba ~ dnorm(0, 1.5),
-    sigma ~ dunif(0,5 )
+    sigma ~ dexp( 1 )
   ) ,
   data=d )
 precis(h4.a2)
@@ -168,7 +169,7 @@ h4.b1 <- quap(
     mu <- a + bg*sd.growing.season.c,
     a ~ dnorm( -5 , 1 ),
     bg ~ dnorm(0,1),
-    sigma ~ dunif(0,5 )
+    sigma ~ dexp( 1 )
   ) ,
   data=d )
 precis(h4.b1)
@@ -190,7 +191,7 @@ h4.b2 <- quap(
     a ~ dnorm( -5 , 1 ),
     bg ~ dnorm(0,1),
     ba ~ dnorm(0, 1.5),
-    sigma ~ dunif(0,5 )
+    sigma ~ dexp( 1 )
   ) ,
   data=d )
 precis(h4.b2)
@@ -207,7 +208,7 @@ coeftab(h4.b1,h4.b2)
 compare(h4.b1,h4.b2)
 ```
 
-Standard deviation of growing season length appears to be negatively associated with number of languages. Adding area did not do much to change the model. Coefficient for growing season also contains 0 in its plausibility range.
+Standard deviation of growing season length appears to be negatively associated with number of languages. When adding in area, the plausible range for the bg coef contained 0. Area may play a role in the standard deviation of growing season length.
   
   (c) Finally, evaluate the hypothesis that mean.growing.season and sd.growing.season interact to synergistically reduce language diversity. The idea is that, in nations with longer average growing seasons, high variance makes storage and redistribution even more important than it would be otherwise. That way, people can cooperate to preserve and protect windfalls to be used during the droughts. These forces in turn may lead to greater social integration and fewer languages.
   
@@ -221,7 +222,7 @@ h4.c1 <- quap(
     bsg ~ dnorm(0,1),
     bmg ~ dnorm(0, 3),
     bsm ~ dnorm(0,1), 
-    sigma ~ dunif(0,5 )
+    sigma ~ dexp( 1 )
   ) ,
   data=d )
 precis(h4.c1)
@@ -243,6 +244,7 @@ for ( s in 1:3 ) {
   xlab="growing season length" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
   mu <- link( h4.c1 , data=data.frame( mean.growing.season.c=-8:8, sd.growing.season.c =  s))
   for ( i in 1:25 ) lines( -8:8 , mu[i,] , col=col.alpha("black",0.3) )
+  lines(-8:8, mu[26,], col="red")
   mtext(paste("Language by season length, SD group =", s))
 }
 ```
@@ -256,7 +258,42 @@ for ( s in 1:3 ) {
   xlab="growing season sd" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
   mu <- link( h4.c1 , data=data.frame( sd.growing.season.c=-5:5, mean.growing.season.c =  s))
   for ( i in 1:25 ) lines( -5:5 , mu[i,] , col=col.alpha("black",0.3) )
+  lines(-5:5, mu[26,], col="red")
   mtext(paste("Language by SD, length group =", s))
 }
 ```
 
+Higher mean growing season length leads to more languages and higher deviation in growing season length leads to less languages.
+
+
+## Expand to more points
+
+```{r}
+### Controlling for sd
+d$sd_group <- cut(d$sd.growing.season.c,9, include.lowest = T, labels = F)
+d$mg_group <- cut(d$mean.growing.season.c,9, include.lowest = T, labels = F)
+par(mfrow=c(3,3)) # 3 plots in 1 row
+for ( s in 1:9 ) {
+  idx <- which( d$sd_group==s )
+  plot( d$mean.growing.season.c[idx] , d$lang.per.cap.log[idx] , xlim=c(-8,8) , ylim=c(-10,0) ,
+  xlab="growing season length" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
+  mu <- link( h4.c1 , data=data.frame( mean.growing.season.c=-8:8, sd.growing.season.c =  s))
+  for ( i in 1:25 ) lines( -8:8 , mu[i,] , col=col.alpha("black",0.3) )
+  lines(-8:8, mu[26,], col="red")
+  mtext(paste("Language by season length, SD group =", s))
+}
+```
+
+```{r}
+### Controlling for length
+par(mfrow=c(3,3)) # 3 plots in 1 row
+for ( s in 1:9 ) {
+  idx <- which( d$mg_group==s )
+  plot( d$sd.growing.season.c[idx] , d$lang.per.cap.log[idx] , xlim=c(-5,5) , ylim=c(-10,0) ,
+  xlab="growing season sd" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
+  mu <- link( h4.c1 , data=data.frame( sd.growing.season.c=-5:5, mean.growing.season.c =  s))
+  for ( i in 1:25 ) lines( -5:5 , mu[i,] , col=col.alpha("black",0.3) )
+  lines(-5:5, mu[26,], col="red")
+  mtext(paste("Language by SD, length group =", s))
+}
+```

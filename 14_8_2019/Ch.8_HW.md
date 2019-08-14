@@ -92,7 +92,7 @@ library(rethinking)
 
 ### 7M1. Recall the tulips example from the chapter. Suppose another set of treatments adjusted the temperature in the greenhouse over two levels: cold and hot. The data in the chapter were collected at the cold temperature. You find none of the plants grown under the hot temperature developed any blooms at all, regardless of the water and shade levels. Can you explain this result in terms of interactions between water, shade, and temperature?
 
-Both water and light are needed to create blooms. With more light and more water, the number of blooms increases. If there is no water or no light, no blooms will be created. Additionally this interaction between water and light is conditional on temperature where no blooms with develop under any combination of water and light conditions if the temperature is too high
+Both water and light are needed to create blooms. With more light and more water, the number of blooms increases. If there is no water or no light, no blooms will be created. Additionally this interaction between water and light is conditional on temperature where no blooms will  develop under any combination of water and light conditions if the temperature is too high.
 
 ### 7M2. Can you invent a regression equation that would make the bloom size zero, whenever the temperature is hot?
 
@@ -189,7 +189,7 @@ dens(a$a[,3],col="red", add = TRUE)
 
 ![](Ch.8_HW_files/figure-html/unnamed-chunk-4-1.png)<!-- -->
 
-Including bed led to a lower WAIC and it has more weight, but the other model is well within the range of the difference. It looks like bed A had on average less blooms than beds B and C. This can also be seen in the `coeftab` table
+Including bed led to a lower WAIC and it has more weight, but the other model is well within the range of the error difference. It looks like bed A had on average less blooms than beds B and C. This can also be seen in the `coeftab` table
 
 ### 7H4. The values in data(nettle) are data on language diversity in 74 nations.130 The meaning of each column is given below,  
   (1) country: Name of the country
@@ -216,6 +216,7 @@ d$lang.per.cap.log <- log(d$lang.per.cap)
   
 
 ```r
+### More negative the log number, the less languages per cap
 d$area.log <- log(d$area)
 d$area.log.c <- d$area.log - mean(d$area.log)
 d$mean.growing.season.c <- d$mean.growing.season - mean(d$mean.growing.season)
@@ -288,7 +289,7 @@ h4.a1 <- quap(
     mu <- a + bg*mean.growing.season.c,
     a ~ dnorm( -5 , 1 ),
     bg ~ dnorm(0,3),
-    sigma ~ dunif(0,5 )
+    sigma ~ dexp( 1 )
   ) ,
   data=d )
 precis(h4.a1)
@@ -296,9 +297,9 @@ precis(h4.a1)
 
 ```
 ##             mean         sd        5.5%      94.5%
-## a     -5.4446693 0.16169807 -5.70309401 -5.1862445
-## bg     0.1739108 0.05246307  0.09006466  0.2577569
-## sigma  1.4094273 0.11586212  1.22425725  1.5945973
+## a     -5.4448766 0.16023038 -5.70095573 -5.1887975
+## bg     0.1739055 0.05197458  0.09084007  0.2569709
+## sigma  1.3963000 0.11319031  1.21540001  1.5772000
 ```
 
 ```r
@@ -323,7 +324,7 @@ h4.a2 <- quap(
     a ~ dnorm( -5 , 1 ),
     bg ~ dnorm(0,3),
     ba ~ dnorm(0, 1.5),
-    sigma ~ dunif(0,5 )
+    sigma ~ dexp( 1 )
   ) ,
   data=d )
 precis(h4.a2)
@@ -331,10 +332,10 @@ precis(h4.a2)
 
 ```
 ##             mean         sd        5.5%       94.5%
-## a     -5.4449981 0.15945421 -5.69983667 -5.19015943
-## bg     0.1440131 0.05561505  0.05512946  0.23289666
-## ba    -0.2001228 0.13692046 -0.41894815  0.01870251
-## sigma  1.3893576 0.11421225  1.20682435  1.57189083
+## a     -5.4452073 0.15802749 -5.69776572 -5.19264881
+## bg     0.1440094 0.05510555  0.05594006  0.23207867
+## ba    -0.2001539 0.13567463 -0.41698818  0.01668034
+## sigma  1.3766107 0.11161749  1.19822439  1.55499702
 ```
 
 ```r
@@ -355,9 +356,9 @@ coeftab(h4.a1,h4.a2)
 
 ```
 ##       h4.a1   h4.a2  
-## a       -5.44   -5.44
+## a       -5.44   -5.45
 ## bg       0.17    0.14
-## sigma    1.41    1.39
+## sigma    1.40    1.38
 ## ba         NA    -0.2
 ## nobs       74      74
 ```
@@ -367,9 +368,9 @@ compare(h4.a1,h4.a2)
 ```
 
 ```
-##           WAIC    pWAIC      dWAIC   weight       SE      dSE
-## h4.a1 267.9843 3.725100 0.00000000 0.509893 15.30355       NA
-## h4.a2 268.0634 4.871461 0.07915439 0.490107 15.76746 3.762174
+##           WAIC    pWAIC      dWAIC    weight       SE      dSE
+## h4.a1 268.0548 3.772646 0.00000000 0.5115892 15.57629       NA
+## h4.a2 268.1475 4.939695 0.09273028 0.4884108 16.04692 3.827957
 ```
 
 It appears that there is a positive association between growing season length and number of languages. Adding area to the model did not appear to have a significant effect.
@@ -385,17 +386,17 @@ h4.b1 <- quap(
     mu <- a + bg*sd.growing.season.c,
     a ~ dnorm( -5 , 1 ),
     bg ~ dnorm(0,1),
-    sigma ~ dunif(0,5 )
+    sigma ~ dexp( 1 )
   ) ,
   data=d )
 precis(h4.b1)
 ```
 
 ```
-##             mean        sd       5.5%       94.5%
-## a     -5.4436283 0.1675007 -5.7113267 -5.17592991
-## bg    -0.3524893 0.1584254 -0.6056837 -0.09929497
-## sigma  1.4614287 0.1201671  1.2693785  1.65347885
+##             mean        sd       5.5%      94.5%
+## a     -5.4440397 0.1659079 -5.7091926 -5.1788867
+## bg    -0.3525562 0.1569151 -0.6033369 -0.1017755
+## sigma  1.4471451 0.1172602  1.2597406  1.6345496
 ```
 
 ```r
@@ -420,7 +421,7 @@ h4.b2 <- quap(
     a ~ dnorm( -5 , 1 ),
     bg ~ dnorm(0,1),
     ba ~ dnorm(0, 1.5),
-    sigma ~ dunif(0,5 )
+    sigma ~ dexp( 1 )
   ) ,
   data=d )
 precis(h4.b2)
@@ -428,10 +429,10 @@ precis(h4.b2)
 
 ```
 ##             mean        sd       5.5%        94.5%
-## a     -5.4441881 0.1649470 -5.7078053 -5.180570908
-## bg    -0.2038123 0.1830869 -0.4964205  0.088795885
-## ba    -0.2402300 0.1546782 -0.4874357  0.006975576
-## sigma  1.4385266 0.1182576  1.2495282  1.627525076
+## a     -5.4444133 0.1634215 -5.7055925 -5.183234154
+## bg    -0.2039154 0.1814100 -0.4938436  0.086012749
+## ba    -0.2402166 0.1532375 -0.4851197  0.004686404
+## sigma  1.4248605 0.1154765  1.2403068  1.609414338
 ```
 
 ```r
@@ -454,7 +455,7 @@ coeftab(h4.b1,h4.b2)
 ##       h4.b1   h4.b2  
 ## a       -5.44   -5.44
 ## bg      -0.35   -0.20
-## sigma    1.46    1.44
+## sigma    1.45    1.42
 ## ba         NA   -0.24
 ## nobs       74      74
 ```
@@ -464,12 +465,12 @@ compare(h4.b1,h4.b2)
 ```
 
 ```
-##           WAIC    pWAIC     dWAIC   weight       SE      dSE
-## h4.b1 273.6344 3.989130 0.0000000 0.552047 17.09881       NA
-## h4.b2 274.0523 5.485086 0.4178896 0.447953 17.05185 3.798933
+##           WAIC    pWAIC     dWAIC    weight       SE      dSE
+## h4.b1 273.6934 4.035468 0.0000000 0.5572226 17.41750       NA
+## h4.b2 274.1532 5.564316 0.4597952 0.4427774 17.37031 3.871383
 ```
 
-Standard deviation of growing season length appears to be negatively associated with number of languages. Adding area did not do much to change the model. Coefficient for growing season also contains 0 in its plausibility range.
+Standard deviation of growing season length appears to be negatively associated with number of languages. When adding in area, the plausible range for the bg coef contained 0. Area may play a role in the standard deviation of growing season length.
   
   (c) Finally, evaluate the hypothesis that mean.growing.season and sd.growing.season interact to synergistically reduce language diversity. The idea is that, in nations with longer average growing seasons, high variance makes storage and redistribution even more important than it would be otherwise. That way, people can cooperate to preserve and protect windfalls to be used during the droughts. These forces in turn may lead to greater social integration and fewer languages.
   
@@ -484,7 +485,7 @@ h4.c1 <- quap(
     bsg ~ dnorm(0,1),
     bmg ~ dnorm(0, 3),
     bsm ~ dnorm(0,1), 
-    sigma ~ dunif(0,5 )
+    sigma ~ dexp( 1 )
   ) ,
   data=d )
 precis(h4.c1)
@@ -492,11 +493,11 @@ precis(h4.c1)
 
 ```
 ##             mean         sd        5.5%       94.5%
-## a     -5.4387889 0.15022376 -5.67887544 -5.19870227
-## bsg   -0.3373645 0.14254452 -0.56517820 -0.10955087
-## bmg    0.1145783 0.05552482  0.02583894  0.20331771
-## bsm   -0.1089040 0.04701309 -0.18403997 -0.03376796
-## sigma  1.3067159 0.10742094  1.13503653  1.47839536
+## a     -5.4389574 0.14895428 -5.67701506 -5.20089966
+## bsg   -0.3374875 0.14133736 -0.56337191 -0.11160310
+## bmg    0.1145818 0.05504548  0.02660851  0.20255513
+## bsm   -0.1089018 0.04660785 -0.18339010 -0.03441342
+## sigma  1.2954249 0.10512118  1.12742099  1.46342888
 ```
 
 
@@ -506,9 +507,9 @@ coeftab(h4.a1,h4.a2,h4.b1,h4.b2,h4.c1)
 
 ```
 ##       h4.a1   h4.a2   h4.b1   h4.b2   h4.c1  
-## a       -5.44   -5.44   -5.44   -5.44   -5.44
+## a       -5.44   -5.45   -5.44   -5.44   -5.44
 ## bg       0.17    0.14   -0.35   -0.20      NA
-## sigma    1.41    1.39    1.46    1.44    1.31
+## sigma    1.40    1.38    1.45    1.42    1.30
 ## ba         NA   -0.20      NA   -0.24      NA
 ## bsg        NA      NA      NA      NA   -0.34
 ## bmg        NA      NA      NA      NA    0.11
@@ -522,11 +523,11 @@ compare(h4.a1,h4.a2,h4.b1,h4.b2,h4.c1)
 
 ```
 ##           WAIC    pWAIC     dWAIC      weight       SE      dSE
-## h4.c1 261.0288 5.677630  0.000000 0.948684479 15.78951       NA
-## h4.a1 268.1791 3.844135  7.150366 0.026572932 15.54357 6.604973
-## h4.a2 268.6193 5.170239  7.590486 0.021324001 16.00217 5.596487
-## h4.b1 273.0978 3.700584 12.069040 0.002271763 16.93813 8.250666
-## h4.b2 274.4649 5.686021 13.436157 0.001146826 17.23640 6.457345
+## h4.c1 261.0983 5.755450  0.000000 0.948871980 16.02849       NA
+## h4.a1 268.2545 3.889963  7.156192 0.026500877 15.81627 6.747906
+## h4.a2 268.6998 5.238341  7.601478 0.021211321 16.28212 5.729486
+## h4.b1 273.1611 3.750050 12.062859 0.002279245 17.25954 8.465440
+## h4.b2 274.5528 5.753410 13.454505 0.001136577 17.53492 6.629465
 ```
 
 
@@ -541,6 +542,7 @@ for ( s in 1:3 ) {
   xlab="growing season length" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
   mu <- link( h4.c1 , data=data.frame( mean.growing.season.c=-8:8, sd.growing.season.c =  s))
   for ( i in 1:25 ) lines( -8:8 , mu[i,] , col=col.alpha("black",0.3) )
+  lines(-8:8, mu[26,], col="red")
   mtext(paste("Language by season length, SD group =", s))
 }
 ```
@@ -557,9 +559,50 @@ for ( s in 1:3 ) {
   xlab="growing season sd" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
   mu <- link( h4.c1 , data=data.frame( sd.growing.season.c=-5:5, mean.growing.season.c =  s))
   for ( i in 1:25 ) lines( -5:5 , mu[i,] , col=col.alpha("black",0.3) )
+  lines(-5:5, mu[26,], col="red")
   mtext(paste("Language by SD, length group =", s))
 }
 ```
 
 ![](Ch.8_HW_files/figure-html/unnamed-chunk-15-1.png)<!-- -->
 
+Higher mean growing season length leads to more languages and higher deviation in growing season length leads to less languages.
+
+
+## Expand to more points
+
+
+```r
+### Controlling for sd
+d$sd_group <- cut(d$sd.growing.season.c,9, include.lowest = T, labels = F)
+d$mg_group <- cut(d$mean.growing.season.c,9, include.lowest = T, labels = F)
+par(mfrow=c(3,3)) # 3 plots in 1 row
+for ( s in 1:9 ) {
+  idx <- which( d$sd_group==s )
+  plot( d$mean.growing.season.c[idx] , d$lang.per.cap.log[idx] , xlim=c(-8,8) , ylim=c(-10,0) ,
+  xlab="growing season length" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
+  mu <- link( h4.c1 , data=data.frame( mean.growing.season.c=-8:8, sd.growing.season.c =  s))
+  for ( i in 1:25 ) lines( -8:8 , mu[i,] , col=col.alpha("black",0.3) )
+  lines(-8:8, mu[26,], col="red")
+  mtext(paste("Language by season length, SD group =", s))
+}
+```
+
+![](Ch.8_HW_files/figure-html/unnamed-chunk-16-1.png)<!-- -->
+
+
+```r
+### Controlling for length
+par(mfrow=c(3,3)) # 3 plots in 1 row
+for ( s in 1:9 ) {
+  idx <- which( d$mg_group==s )
+  plot( d$sd.growing.season.c[idx] , d$lang.per.cap.log[idx] , xlim=c(-5,5) , ylim=c(-10,0) ,
+  xlab="growing season sd" , ylab="log(lang per cap)" , pch=16 , col=rangi2 )
+  mu <- link( h4.c1 , data=data.frame( sd.growing.season.c=-5:5, mean.growing.season.c =  s))
+  for ( i in 1:25 ) lines( -5:5 , mu[i,] , col=col.alpha("black",0.3) )
+  lines(-5:5, mu[26,], col="red")
+  mtext(paste("Language by SD, length group =", s))
+}
+```
+
+![](Ch.8_HW_files/figure-html/unnamed-chunk-17-1.png)<!-- -->
