@@ -1,0 +1,322 @@
+---
+title: "04_10_2019_HW"
+author: "John D."
+date: "October 4, 2019"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(rethinking)
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
+```
+
+# 8E3. Which sort of parameters can Hamiltonian Monte Carlo not handle? Can you explain why?
+
+HMC can not handle discrete parameters. For HMC to work, the sampler must be able to move along a smooth surface meaning that the parameter values must have a continuous distribution.
+
+# 8M1. Re-estimate the terrain ruggedness model from the chapter, but now using a uniform prior and an exponential prior for the standard deviation, sigma. The uniform prior should be dunif(0,10) and the exponential should be dexp(1). Do the different priors have any detectible influence on the posterior distribution?
+
+```{r}
+# Reloading data and transforming 
+data(rugged)
+d <- rugged
+d$log_gdp <- log(d$rgdppc_2000)
+dd <- d[ complete.cases(d$rgdppc_2000) , ]
+dd$log_gdp_std <- dd$log_gdp / mean(dd$log_gdp)
+dd$rugged_std <- dd$rugged / max(dd$rugged)
+dd$cid <- ifelse( dd$cont_africa==1 , 1 , 2 )
+dat_slim <- list(
+  log_gdp_std = dd$log_gdp_std,
+  rugged_std = dd$rugged_std,
+  cid = as.integer( dd$cid )
+)
+
+# Run with 3 different sigmas
+
+M8M.1a <- ulam(
+  alist(
+    log_gdp_std ~ dnorm( mu , sigma ) ,
+    mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+    a[cid] ~ dnorm( 1 , 0.1 ) ,
+    b[cid] ~ dnorm( 0 , 0.3 ) ,
+    sigma ~ dexp( 1 )
+    ) ,
+data=dat_slim , cores = 8, chains=8, iter = 2000, log_lik=T)
+
+
+M8M.1b <- ulam(
+  alist(
+    log_gdp_std ~ dnorm( mu , sigma ) ,
+    mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+    a[cid] ~ dnorm( 1 , 0.1 ) ,
+    b[cid] ~ dnorm( 0 , 0.3 ) ,
+    sigma ~ dcauchy(0,1)
+    ) ,
+data=dat_slim , cores = 8, chains=8, iter = 2000, log_lik=T)
+
+
+M8M.1c <- ulam(
+  alist(
+    log_gdp_std ~ dnorm( mu , sigma ) ,
+    mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+    a[cid] ~ dnorm( 1 , 0.1 ) ,
+    b[cid] ~ dnorm( 0 , 0.3 ) ,
+    sigma ~ dunif(0,10)
+    ) ,
+data=dat_slim , cores = 8, chains=8, iter = 2000, log_lik=T)
+```
+
+```{r}
+precis( M8M.1a , depth=2 )
+precis( M8M.1b , depth=2 )
+precis( M8M.1c , depth=2 )
+```
+
+```{r}
+compare(M8M.1a,M8M.1b,M8M.1c)
+```
+
+Looking at the 3 models it does not look like the different priors had an effect on the posterior distribution. This problem is probably to illustrate that even with good and bad priors, HMC will eventually find an accurate distribution. Warm-up phase adjusts for bad priors?
+
+# 8M2. The Cauchy and exponential priors from the terrain ruggedness model are very weak. They can be made more informative by reducing their scale. Compare the dcauchy and dexp priors for progressively smaller values of the scaling parameter. As these priors become stronger, how does each influence the posterior distribution?
+
+```{r}
+# dcauchy(x, location = 0, scale = 1)
+dcau.1 <- ulam(
+  alist(
+    log_gdp_std ~ dnorm( mu , sigma ) ,
+    mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+    a[cid] ~ dnorm( 1 , 0.1 ) ,
+    b[cid] ~ dnorm( 0 , 0.3 ) ,
+    sigma ~ dcauchy(0,.1)
+    ) ,
+data=dat_slim , cores = 8, chains=8, iter = 2000, log_lik=T)
+dcau.01 <- ulam(
+  alist(
+    log_gdp_std ~ dnorm( mu , sigma ) ,
+    mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+    a[cid] ~ dnorm( 1 , 0.1 ) ,
+    b[cid] ~ dnorm( 0 , 0.3 ) ,
+    sigma ~ dcauchy(0,.01)
+    ) ,
+data=dat_slim , cores = 8, chains=8, iter = 2000, log_lik=T)
+dcau.001 <- ulam(
+  alist(
+    log_gdp_std ~ dnorm( mu , sigma ) ,
+    mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+    a[cid] ~ dnorm( 1 , 0.1 ) ,
+    b[cid] ~ dnorm( 0 , 0.3 ) ,
+    sigma ~ dcauchy(0,.001)
+    ) ,
+data=dat_slim , cores = 8, chains=8, iter = 2000, log_lik=T)
+
+precis( M8M.1b , depth=2 )
+precis( dcau.1 , depth=2 )
+precis( dcau.01 , depth=2 )
+precis( dcau.001 , depth=2 )
+compare(M8M.1b,dcau.1,dcau.01,dcau.001)
+```
+
+```{r}
+dxp.1 <- ulam(
+  alist(
+    log_gdp_std ~ dnorm( mu , sigma ) ,
+    mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+    a[cid] ~ dnorm( 1 , 0.1 ) ,
+    b[cid] ~ dnorm( 0 , 0.3 ) ,
+    sigma ~ dexp(.1)
+    ) ,
+data=dat_slim , cores = 8, chains=8, iter = 2000, log_lik=T)
+dxp.01 <- ulam(
+  alist(
+    log_gdp_std ~ dnorm( mu , sigma ) ,
+    mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+    a[cid] ~ dnorm( 1 , 0.1 ) ,
+    b[cid] ~ dnorm( 0 , 0.3 ) ,
+    sigma ~ dexp(.01)
+    ) ,
+data=dat_slim , cores = 8, chains=8, iter = 2000, log_lik=T)
+dxp.001 <- ulam(
+  alist(
+    log_gdp_std ~ dnorm( mu , sigma ) ,
+    mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+    a[cid] ~ dnorm( 1 , 0.1 ) ,
+    b[cid] ~ dnorm( 0 , 0.3 ) ,
+    sigma ~ dexp(.001)
+    ) ,
+data=dat_slim , cores = 8, chains=8, iter = 2000, log_lik=T)
+
+precis( M8M.1a , depth=2 )
+precis( dxp.1 , depth=2 )
+precis( dxp.01 , depth=2 )
+precis( dxp.001 , depth=2 )
+compare(M8M.1b,dxp.1,dxp.01,dxp.001)
+```
+
+They are all getting the same final result
+
+# 8H1. Run the model below and then inspect the posterior distribution and explain what it is accomplishing.
+
+```{r}
+mp <- ulam(
+  alist(
+    a ~ dnorm(0,1),
+    b ~ dcauchy(0,1)
+  ),
+  data=list(y=1),
+  start=list(a=0,b=0),
+  iter=1e4, warmup=100, chains = 3, cores = 3)
+```
+
+```{r}
+precis(mp, depth = 2)
+```
+
+```{r}
+traceplot(mp)
+```
+
+```{r}
+trankplot(mp)
+```
+
+```{r}
+par(mfrow =c(1,1))
+extract.samples(mp)$a %>% hist()
+extract.samples(mp)$a %>% summary()
+extract.samples(mp)$b %>% hist()
+extract.samples(mp)$b %>% summary()
+```
+
+Cauchy has some massive outliers. a is sampling from the normal distribution and b is sampling from Cauchy distribution. I guess cauchy extends its tail much farther, but is also narrower at the mean.
+
+```{r}
+extract.samples(mp)$a %>% dens()
+extract.samples(mp)$b %>% dens()
+```
+
+
+# 8H2. Recall the divorce rate example from Chapter 5. Repeat that analysis, using map2stan this time, fitting models m5.1, m5.2, and m5.3. Use compare to compare the models on the basis of WAIC. Explain the results
+
+```{r}
+# load data and copy
+data(WaffleDivorce)
+d <- WaffleDivorce
+# standardize variables
+d$A <- scale( d$MedianAgeMarriage )
+d$D <- scale( d$Divorce )
+d$M <- scale( d$Marriage )
+
+m5.1.quap <- quap(
+  alist(
+    D ~ dnorm( mu , sigma ) ,
+    mu <- a + bA * A ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bA ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+  ) , data = d)
+
+
+m5.2.quap <- quap(
+  alist(
+    D ~ dnorm( mu , sigma ) ,
+    mu <- a + bM * M ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bM ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+  ) , data = d)
+
+m5.3.quap <- quap(
+  alist(
+    D ~ dnorm( mu , sigma ) ,
+    mu <- a + bM*M + bA*A ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bM ~ dnorm( 0 , 0.5 ) ,
+    bA ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+  ) , data = d)
+
+d_slim <- list(
+  A = d$A,
+  D = d$D
+)
+
+m5.1.ulam <- ulam(
+  alist(
+    D ~ dnorm( mu , sigma ) ,
+    mu <- a + bA * A ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bA ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+  ) , data = d_slim, cores = 4, chains = 4, iter = 2000, log_lik = T)
+
+d_slim <- list(
+  A = d$A,
+  D = d$D,
+  M = d$M
+)
+
+m5.2.ulam <- ulam(
+  alist(
+    D ~ dnorm( mu , sigma ) ,
+    mu <- a + bM * M ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bM ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+  ) , data = d_slim, cores = 4, chains = 4, iter = 2000, log_lik = T)
+
+m5.3.ulam <- ulam(
+  alist(
+    D ~ dnorm( mu , sigma ) ,
+    mu <- a + bM*M + bA*A ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bM ~ dnorm( 0 , 0.5 ) ,
+    bA ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+  ) , data = d_slim, cores = 4, chains = 4, iter = 2000, log_lik = T )
+
+precis( m5.1.quap )
+precis( m5.1.ulam )
+precis( m5.2.quap )
+precis( m5.2.ulam )
+precis( m5.3.quap )
+precis( m5.3.ulam )
+
+compare(m5.1.ulam, m5.2.ulam, m5.3.ulam)
+compare(m5.1.quap, m5.2.quap, m5.3.quap)
+```
+
+You get pretty much the same result in this case which says the second model do not carry any weight and the first model carries the most weight and has the lowest WAIC
+
+# 8H6. Modify the Metropolis algorithm code from the chapter to write your own simple MCMC estimator for globe tossing data and model from Chapter 2.
+
+```{r}
+
+n_samples <- 1000 # 1000 tosses
+p <- rep( NA , n_samples ) # Build vector
+p[1] <- 0.5 # 50/50 start
+W <- 7 # world 70% water
+L <- 3 # world 30% land
+for ( i in 2:n_samples ) {
+  p_new <- rnorm( 1 , p[i-1] , 0.1 )
+  if ( p_new < 0 ) p_new <- abs( p_new )
+  if ( p_new > 1 ) p_new <- 2 - p_new
+  q0 <- dbinom( W , W+L , p[i-1] )
+  q1 <- dbinom( W , W+L , p_new )
+  p[i] <- ifelse( runif(1) < q1/q0 , p_new , p[i-1] )
+}
+dens(p, xlim = c(0,1))
+curve( dbeta( x , W+1 , L+1 ) , lty=2 , add=TRUE )
+
+#Stolen straight from the book
+```
+
