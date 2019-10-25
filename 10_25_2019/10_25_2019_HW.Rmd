@@ -147,6 +147,7 @@ plot(precis(list(mu = preds), depth = 2), labels = row_labels)
 French judges do not appear to like American red wine. American judges really like French red wine.
 
 ```{r}
+<<<<<<< HEAD
 dat_slim_3 <- list(
 f = ifelse(dat$flight == "white", 1L, 2L),
 j = dat$judge.amer + 1L,
@@ -165,5 +166,24 @@ model_4 <- ulam(
 
 preds <- link(model_4, pred_dat)
 plot(precis(list(mu = preds), depth = 2), labels = row_labels)
+=======
+# dat_slim_3 <- list(
+# f = ifelse(dat$flight == "white", 1L, 2L),
+# j = dat$judge.amer + 1L,
+# w = dat$wine.amer + 1L,
+# score_std = (dat$score - mean(dat$score)) / sd(dat$score)
+# )
+# dat_slim_3
+# 
+# model_4 <- ulam(
+#   alist(
+#    score_std ~ dnorm(mu, sigma),
+#     mu <- w[f,j,w],
+#   real['2,2,2']:w ~ normal(0,0.5),
+#   sigma ~ dexp(1)
+#   ), data = dat_slim_3, chains = 4, iter = 10000, cores = 4, log_lik = T
+# ) 
+
+>>>>>>> fc4f05e334f1d3e57459cc464a0f582e55bf9197
 ```
 
