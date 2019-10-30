@@ -80,10 +80,10 @@ model_2 <- ulam(
 alist(
 score_std ~ dnorm(mu, sigma),
 mu <- a + flight*f + wine*w + judge*j,
-a ~ dnorm(0, 0.25),
-judge ~ dnorm(0, 0.25),
-wine ~ dnorm(0, 0.25),
-flight ~ dnorm(0, 0.25),
+a ~ dnorm(0, 1),
+judge ~ dnorm(0, 1),
+wine ~ dnorm(0, 1),
+flight ~ dnorm(0, 1),
 sigma ~ dexp(1)
 ),
 data = dat_slim_2, chains = 4, iter = 10000, cores = 4, log_lik = T
