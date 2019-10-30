@@ -1,0 +1,199 @@
+---
+title: "11_1_2019_HW"
+author: "John D."
+date: "November 1, 2019"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(rethinking)
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
+```
+
+## 10E1. If an event has probability 0.35, what are the log-odds of this event?
+
+```{r}
+logit(0.35)
+```
+
+## 10E2. If an event has log-odds 3.2, what is the probability of this event?
+
+```{r}
+inv_logit(3.2)
+```
+
+## 10E3. Suppose that a coefficient in a logistic regression has value 1.7. What does this imply about the proportional change in odds of the outcome?
+
+A one unit change in the variable while have a 1.7 unit change in the log of the odds.
+
+## 10M1. As explained in the chapter, binomial data can be organized in aggregated and disaggregated forms, without any impact on inference. But the likelihood of the data does change when the data are converted between the two formats. Can you explain why?
+
+The multiplicity in the aggregated data causes the aggregated data likelihood to be different from the disaggregated data likelihood. Looking at counts vs individual trials.
+
+## 1. The data in data(NWOGrants) are outcomes for scientific funding applications for the Netherlands Organization for Scientific Research (NWO) from 2010-2012. These data have a very similar structure to the UCBAdmit data discussed in Chapter 11.
+### I want you to consider a similar question: What are the total and indirect causal effects of gender on grant awards? Consider a mediation path (a pipe) through `discipline`. Draw the corresponding DAG and then use one or more binomial GLMs to answer the question.
+### What is your causal interpretation? If NWO's goal is to equilize rates of funding between the genders, what type of intervention would be most effective?
+
+```{r}
+library(dagitty)
+data("NWOGrants")
+d <- NWOGrants
+head(d)
+summary(d)
+
+# Build DAG
+dag <- dagitty( "dag {
+                G -> A
+                G -> D
+                D -> A
+                }")
+coordinates(dag) <- list(x = c(G=0,D=0.5,A=1), y = c(G=0,D=-0.5,A=0))
+plot(dag)
+
+# Model 1 without conditioning on discipline
+dat_slim <- list(
+  awards = d$awards,
+  gender = ifelse(d$gender == "m", 1L,2L),
+  applications = d$applications
+)
+
+dat_slim
+
+model_1 <- ulam(
+  alist(
+    awards ~ dbinom(applications, p),
+    logit(p) <- a[gender],
+    a[gender] ~ dnorm(0 , 1.5)
+  ), data = dat_slim, cores = 4, chains = 4, iter = 5000
+)
+
+traceplot(model_1)
+precis(model_1, depth = 2)
+
+post <- extract.samples(model_1)
+diff_a <- post$a[,1] - post$a[,2]
+diff_p <- inv_logit(post$a[,1]) - inv_logit(post$a[,2])
+precis(list(diff_a = diff_a , diff_p = diff_p))
+
+par(mfrow=c(1,1))
+postcheck( model_1 , n=1e4)
+# draw lines connecting points from same dept
+d$disc_id <- rep( 1:9 , each=2 )
+for ( i in 1:9 ) {
+  x <- 1 + 2*(i-1)
+  y1 <- d$awards[x]/d$applications[x]
+  y2 <- d$awards[x+1]/d$applications[x+1]
+  lines( c(x,x+1) , c(y1,y2) , col=rangi2 , lwd=2)
+  text( x+0.5 , (y1+y2)/2 + 0.05 , d$discipline[x] , cex=0.8 , col=rangi2 )
+}
+
+# Model 2, condition on discipline
+
+dat_slim2 <- list(
+  awards = d$awards,
+  gender = ifelse(d$gender == "m", 1L,2L),
+  applications = d$applications,
+  discipline = d$disc_id
+)
+
+model_2 <- ulam(
+  alist(
+    awards ~ dbinom(applications, p),
+    logit(p) <- a[gender] + d[discipline],
+    a[gender] ~ dnorm(0 , 1.5),
+    d[discipline] ~ dnorm(0, 1.5)
+  ), data = dat_slim2, cores = 4, chains = 4, iter = 5000
+)
+
+traceplot(model_2)
+precis(model_2, depth = 2)
+
+post <- extract.samples(model_2)
+diff_a <- post$a[,1] - post$a[,2]
+diff_p <- inv_logit(post$a[,1]) - inv_logit(post$a[,2])
+precis(list(diff_a = diff_a , diff_p = diff_p))
+
+par(mfrow=c(1,1))
+postcheck( model_2 , n=1e4)
+# draw lines connecting points from same dept
+d$disc_id <- rep( 1:9 , each=2 )
+for ( i in 1:9 ) {
+  x <- 1 + 2*(i-1)
+  y1 <- d$awards[x]/d$applications[x]
+  y2 <- d$awards[x+1]/d$applications[x+1]
+  lines( c(x,x+1) , c(y1,y2) , col=rangi2 , lwd=2)
+  text( x+0.5 , (y1+y2)/2 + 0.05 , d$discipline[x] , cex=0.8 , col=rangi2 )
+}
+
+pg <- sapply( 1:9 , function(k)
+  d$applications[d$disc_id==k]/sum(d$applications[d$disc_id==k]))
+
+ag <- sapply( 1:9 , function(k)
+  d$awards[d$disc_id==k]/sum(d$awards[d$disc_id==k]))
+
+all <- d %>%
+  cbind(., awarded = as.vector(ag[1:18]), applied = as.vector(pg[1:18]))
+
+all %>% gather(key = Type, value = Value, awarded:applied) %>%
+  mutate(Combination = paste0(gender,"_",Type)) %>%
+  ggplot(., aes(x = discipline, y = Value, fill = Combination)) +
+  geom_bar(stat = "identity", position = "dodge")
+```
+
+Males have a higher award rate on average. When factoring discipline in, males still have a slight advantage over females. 
+
+
+## 2. Suppose that the NWO Grants sample has an unobserved confound that influences both choice of discipline and the probability of an award. One example of such a confound could be the career stage of each applicant. Suppose that in some disciplines, junior scholars apply for most of the grants. In other disciplines, scholars from all career stages compete. As a result, career stage influences discipline as well as the probability of being awarded a grant.
+### Add theses influences to your DAG from Problem 1. What happens now when you condition on discipline? Does it provide an un-confounded estimate of the direct path from gender to an award? Why or why not? Justify your answer with the back-door criterion. Hint: This is structually a lot like the grandparents-parents-children-neighborhoods example from a previous week.
+### If you have trouble thinking this through, try simulating fake data, assuming your DAG is true. Then analyze it using the model from Problem 1. What do you conclude? Is it possible for gender to have a real direct causal influence but for a regression conditioning on both gender and discipline to suggest zero influence?
+
+```{r}
+# Build DAG
+dag <- dagitty( "dag {
+                G -> A
+                G -> D
+                D -> A
+                S -> D
+                S -> A
+                }")
+coordinates(dag) <- list(x = c(G=0,D=0.5,A=0.5,S=1), y = c(G=0,D=0,A=-0.5,S=0))
+plot(dag)
+
+# Sim the effect of Stage
+
+set.seed(452)
+N <- 10000
+G <- rbinom(N,1,0.5)
+S <- rbinom(N,1,0.5)
+D <- rbinom(N,1, inv_logit(G + S))
+A <- rbinom(N,1, inv_logit(0.25*G + 0.75*D + 0.75*S - 1.25)) # max = .62; min = .22
+dat_slim <- list(
+  A = A,
+  D = D,
+  G = G
+)
+
+model_3 <- ulam(
+  alist(
+    A ~ dbinom(1,p),
+    logit(p) <- a + d*D + g*G,
+    a ~ dnorm(0,.5),
+    d ~ dnorm(0,.5),
+    g ~ dnorm(0,.5)
+  ), data = dat_slim, chains = 4, cores = 4, iter = 5000
+)
+
+traceplot(model_3)
+precis(model_3, depth = 2)
+```
+
+Gender now appears to have a stronger influence on awards
