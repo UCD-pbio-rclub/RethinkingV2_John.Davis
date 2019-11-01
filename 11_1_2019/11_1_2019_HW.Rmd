@@ -39,9 +39,7 @@ A one unit change in the variable while have a 1.7 unit change in the log of the
 
 The multiplicity in the aggregated data causes the aggregated data likelihood to be different from the disaggregated data likelihood. Looking at counts vs individual trials.
 
-## 1. The data in data(NWOGrants) are outcomes for scientific funding applications for the Netherlands Organization for Scientific Research (NWO) from 2010-2012. These data have a very similar structure to the UCBAdmit data discussed in Chapter 11.
-### I want you to consider a similar question: What are the total and indirect causal effects of gender on grant awards? Consider a mediation path (a pipe) through `discipline`. Draw the corresponding DAG and then use one or more binomial GLMs to answer the question.
-### What is your causal interpretation? If NWO's goal is to equilize rates of funding between the genders, what type of intervention would be most effective?
+### 1. The data in data(NWOGrants) are outcomes for scientific funding applications for the Netherlands Organization for Scientific Research (NWO) from 2010-2012. These data have a very similar structure to the UCBAdmit data discussed in Chapter 11. I want you to consider a similar question: What are the total and indirect causal effects of gender on grant awards? Consider a mediation path (a pipe) through `discipline`. Draw the corresponding DAG and then use one or more binomial GLMs to answer the question. What is your causal interpretation? If NWO's goal is to equilize rates of funding between the genders, what type of intervention would be most effective?
 
 ```{r}
 library(dagitty)
@@ -149,12 +147,10 @@ all %>% gather(key = Type, value = Value, awarded:applied) %>%
   geom_bar(stat = "identity", position = "dodge")
 ```
 
-Males have a higher award rate on average. When factoring discipline in, males still have a slight advantage over females. 
+Males have a higher award rate on average. When factoring discipline in, males still have an advantage over females. 
 
 
-## 2. Suppose that the NWO Grants sample has an unobserved confound that influences both choice of discipline and the probability of an award. One example of such a confound could be the career stage of each applicant. Suppose that in some disciplines, junior scholars apply for most of the grants. In other disciplines, scholars from all career stages compete. As a result, career stage influences discipline as well as the probability of being awarded a grant.
-### Add theses influences to your DAG from Problem 1. What happens now when you condition on discipline? Does it provide an un-confounded estimate of the direct path from gender to an award? Why or why not? Justify your answer with the back-door criterion. Hint: This is structually a lot like the grandparents-parents-children-neighborhoods example from a previous week.
-### If you have trouble thinking this through, try simulating fake data, assuming your DAG is true. Then analyze it using the model from Problem 1. What do you conclude? Is it possible for gender to have a real direct causal influence but for a regression conditioning on both gender and discipline to suggest zero influence?
+## 2. Suppose that the NWO Grants sample has an unobserved confound that influences both choice of discipline and the probability of an award. One example of such a confound could be the career stage of each applicant. Suppose that in some disciplines, junior scholars apply for most of the grants. In other disciplines, scholars from all career stages compete. As a result, career stage influences discipline as well as the probability of being awarded a grant. Add theses influences to your DAG from Problem 1. What happens now when you condition on discipline? Does it provide an un-confounded estimate of the direct path from gender to an award? Why or why not? Justify your answer with the back-door criterion. Hint: This is structually a lot like the grandparents-parents-children-neighborhoods example from a previous week. If you have trouble thinking this through, try simulating fake data, assuming your DAG is true. Then analyze it using the model from Problem 1. What do you conclude? Is it possible for gender to have a real direct causal influence but for a regression conditioning on both gender and discipline to suggest zero influence?
 
 ```{r}
 # Build DAG
@@ -172,10 +168,10 @@ plot(dag)
 
 set.seed(452)
 N <- 10000
-G <- rbinom(N,1,0.5)
-S <- rbinom(N,1,0.5)
-D <- rbinom(N,1, inv_logit(G + S))
-A <- rbinom(N,1, inv_logit(0.25*G + 0.75*D + 0.75*S - 1.25)) # max = .62; min = .22
+G <- rbinom(N,1,0.5) # 50% chance male or female
+S <- rbinom(N,1,0.5) # 50% chance junior or senior
+D <- rbinom(N,1, inv_logit(G + 1.5*S)) # 2 disciplines, higher your stage the higher department level, gender also a factor
+A <- rbinom(N,1, inv_logit(0.75*D + 0.50*S - 1.25)) # max = .73; min = .22 Discipline plays major role along
 dat_slim <- list(
   A = A,
   D = D,
@@ -194,6 +190,8 @@ model_3 <- ulam(
 
 traceplot(model_3)
 precis(model_3, depth = 2)
+
+inv_logit(2.5) - inv_logit(1.5)
 ```
 
-Gender now appears to have a stronger influence on awards
+Gender now appears to have a no influence on being awarded, but it does affect your discipline choice which heavily affects your chance of receiving an award
