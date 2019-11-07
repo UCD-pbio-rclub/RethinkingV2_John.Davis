@@ -1,0 +1,234 @@
+---
+title: "11_8_2019_HW"
+author: "John D."
+date: "November 8, 2019"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(rethinking)
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
+```
+
+## 10E4. Why do Poisson regressions sometimes require the use of an offset? Provide an example.
+
+Poisson regressions sometimes require the use of an offset because counts are sometimes recorded using different time intervals. For example you may want to know which TV network has a higher rate of new episodes. One network may report their number of new episodes on a daily basis while the other reports their number on a monthly basis. To compare the two networks you will have to include an offset in your model.
+
+## 10M2. If a coefficient in a Poisson regression has value 1.7, what does this imply about the change in the outcome?
+
+```{r}
+exp(1.7)
+```
+
+A 1 unit change in the predictor variable will lead to a rate change of ~5.47 meaning an increase in the rate of event occurances.
+
+## 10M3. Explain why the logit link is appropriate for a binomial generalized linear model.
+
+Binomial generalized linear models use probabilities as one of their parameters. Logging the probability allows you to place a value on the real number line thus allowing you to create a linear model.
+
+## 10M4. Explain why the log link is appropriate for a Poisson generalized linear model.
+
+Poisson generalized linear models are models based on counts. Counts can range from 0 to Inf, but they cannot be zero. A log link exponentiates the linear predictors thus bounding them from 0 to Inf so you cannot predict negative counts
+
+## 10H4. The data contained in data(salamanders) are counts of salamanders (Plethodon elongatus) from 47 different 49-m^2 plots in northern California. The column SALAMAN is the count in each plot, and the columns PCTCOVER and FORESTAGE are percent of ground cover and age of trees in the plot, respectively. You will model SALAMAN as a Poisson variable.
+
+```{r}
+data(salamanders)
+d <- salamanders
+head(salamanders)
+# Standardize PCTCOVER
+d$std_cov <- scale(d$PCTCOVER)
+head(d)
+summary(d)
+```
+
+
+  a. Model the relationship between density and percent cover, using a log-link (same as the example in the book and lecture). Use weakly informative priors of your choosing. Check the quadratic approximation again, by comparing map to map2stan. Then plot the expected counts and their 89% interval against percent cover. In which ways does the model do a good job? In which ways does it do a bad job?
+
+```{r}
+summary(d)
+
+# Find appropriate intercept
+
+curve( dlnorm(x, 1, 0.5 ) , from=0 , to=100 , n=200 )
+a <- rnorm(1e4,1,0.5)
+lambda <- exp(a)
+mean( lambda )
+dens(lambda)
+max(lambda)
+# Seems appropriate enough
+
+# Find appriorate slope prior
+# Assuming more coverage means more salamanders
+
+N <- 100
+a <- rnorm(N , 1 , 0.5)
+b <- rnorm(N , 0 , 0.4)
+plot(NULL , xlim = c(-2, 1.5) , ylim = c(0, 40))
+for (i in 1:N){
+  curve(exp(a[i] + b[i] * x) , add = TRUE , col = col.alpha("black", 0.5))
+}
+
+# Looks like a good range for priors
+
+h10.4a <- ulam(
+  alist(
+    SALAMAN ~ dpois(lambda),
+    log(lambda) <- a + bc*std_cov,
+    a ~ dnorm(1 , 0.5),
+    bc ~ dnorm(0 , 0.4)
+  ), data = d, chains = 4, cores = 4, log_lik = TRUE
+)
+
+precis(h10.4a, depth = 2)
+pairs(h10.4a)
+
+plot(d$std_cov, d$SALAMAN,
+  xlab = "percent coverage (std)" ,
+  ylab = "total salamanders" ,
+  col = rangi2 ,
+  lwd = 2 ,
+  ylim = c(0, 30)
+  )
+
+# set up the horizontal axis values to compute predictions at
+ns <- 100
+SALAMAN_seq <- seq(from = -2 ,
+             to = 2 ,
+             length.out = ns)
+# predictions for cid=1 (low contact)
+lambda <- link(h10.4a , data = data.frame(std_cov = SALAMAN_seq))
+lmu <- apply(lambda , 2 , mean)
+lci <- apply(lambda , 2 , PI)
+lines(SALAMAN_seq , lmu , lty = 2 , lwd = 1.5)
+shade(lci , SALAMAN_seq , xpd = TRUE)
+```
+
+It looks decent at low levels of coverage where there are very few salamanders. Around a Z-score of .75 the prediction starts to break down as the number of salamanders jumps higher, while also having low numbers
+
+  b. Can you improve the model by using the other predictor, FORESTAGE? Try any models you
+think useful. Can you explain why FORESTAGE helps or does not help with prediction?
+
+```{r}
+head(d)
+
+dens(d$FORESTAGE)
+# 4 clear peaks of age with 200 year gap, need to transform
+# Some ages are 0 need to account for that in transformation
+d$std_age <- scale(log(d$FORESTAGE + 1))
+summary(d)
+
+h10.4b <- ulam(
+  alist(
+    SALAMAN ~ dpois(lambda),
+    log(lambda) <- a + bc*std_cov + ba*std_age,
+    a ~ dnorm(1 , 0.5),
+    c(bc,ba) ~ dnorm(0 , 0.4)
+  ), data = d, chains = 4, cores = 4, log_lik = TRUE
+)
+
+plot(precis(h10.4b, depth = 2))
+pairs(h10.4b)
+
+# Age does not seem to add to the model
+
+plot(d$std_cov,d$std_age)
+
+compare(h10.4a,h10.4b)
+coeftab(h10.4a,h10.4b)
+```
+
+Forest age and coverage are so highly correlated that adding forest age to the model did not make a difference.
+
+# Week6 PDF # 3 
+
+## The data in `data(Primates301)` were first introduced at the end of Chapter 7. In this problem, you will consider how brain size is associated with social learning. There are three parts
+
+1. First, model the number of observations of `social_learning` for each species as a function of the log `brain` size. Use a Poisson distribution for the `social_learning` outcome variable. Interpret the resulting posterior.  
+
+```{r}
+data(Primates301)
+d <- Primates301
+head(d)
+
+dat <- list(R = d$research_effort,
+            L = d$social_learning,
+            B = scale(log(d$brain))
+)
+
+summary(dat)
+
+sum(is.na(dat$R))
+sum(is.na(dat$L))
+sum(is.na(dat$B))
+
+d <- d[complete.cases(d$research_effort, d$social_learning, d$brain),]
+dat <- list(R = log(d$research_effort),
+            L = d$social_learning,
+            B = scale(log(d$brain))
+)
+
+summary(dat)
+
+sum(is.na(dat$R))
+sum(is.na(dat$L))
+sum(is.na(dat$B))
+
+m.1 <- ulam(
+  alist(
+    L ~ dpois(lambda),
+    log(lambda) <- a + bb*B,
+    c(a,bb) ~ dnorm(0,1)
+    ), data = dat, chains = 4, cores = 4, log_lik = T, iter = 5000
+)
+
+precis(m.1)
+postcheck(m.1, window=25) # 6 windows
+```
+
+Some predictions are extremely off
+
+2. Second, some species are studied much more than others. So the number of reported instances of `social_learning` could be a product of research effort. Use the `research_effort` variable, specifically its logarithm, as an additional predictor variable. Interpret the coefficient for log `research_effort`. Does this model disagree with the previous one?  
+
+```{r}
+m.2 <- ulam(
+  alist(
+    L ~ dpois(lambda),
+    log(lambda) <- a + bb*B + br*R,
+    c(a,bb,br) ~ dnorm(0,1)
+  ), data = dat, chains = 4, cores = 4, log_lik = T, iter = 5000
+)
+
+precis(m.2)
+postcheck(m.2, window=25) # 6 windows
+
+compare(m.1,m.2)
+```
+
+The second model is better in this case also saying research effort plays a larger role than brain size.
+
+3. Third, draw a DAG to represent how you think variables `social_learning`, `brain`, and `research_effort` interact. Justify the DAG with the measured associations in the two models above (and any other model you used).
+
+```{r}
+library(dagitty)
+
+# Build DAG
+dag <- dagitty( "dag {
+                B -> R
+                R -> L
+                B -> L
+                }")
+coordinates(dag) <- list(x = c(B=0,L=0.5,R=1), y = c(B=0,L=-0.5,R=0))
+plot(dag)
+```
+
+The bigger your brain the more social learning and the bigger your brain the more research effort leading to more social learning
