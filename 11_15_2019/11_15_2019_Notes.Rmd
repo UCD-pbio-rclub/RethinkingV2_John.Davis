@@ -1,0 +1,992 @@
+---
+title: "11_15_2019_Notes"
+author: "John D."
+date: "November 8, 2019"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(rethinking)
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
+```
+
+# 11 God Spiked the Integers
+## 11.1. Binomial regression
+### 11.1.1. Logistic regression: Prosocial chimpanzees
+
+```{r}
+data(chimpanzees)
+d <- chimpanzees
+d$treatment <- 1 + d$prosoc_left + 2 * d$condition
+xtabs(~ treatment + prosoc_left + condition , d)
+```
+
+```{r}
+m11.1 <- quap(alist(pulled_left ~ dbinom(1 , p) ,
+                    logit(p) <- a ,
+                    a ~ dnorm(0 , 10)) , data = d)
+
+set.seed(1999)
+prior <- extract.prior(m11.1 , n = 1e4)
+p <- inv_logit(prior$a)
+dens(p , adj = 0.1)
+
+m11.1 <- quap(alist(pulled_left ~ dbinom(1 , p) ,
+                    logit(p) <- a ,
+                    a ~ dnorm(0 , 1.5)) , data = d)
+
+set.seed(1999)
+prior <- extract.prior(m11.1 , n = 1e4)
+p <- inv_logit(prior$a)
+dens(p , adj = 0.1, add = T, col = "blue")
+```
+
+```{r}
+m11.2 <- quap(alist(
+  pulled_left ~ dbinom(1 , p) ,
+  logit(p) <- a + b[treatment] ,
+  a ~ dnorm(0 , 1.5),
+  b[treatment] ~ dnorm(0 , 10)
+) ,
+data = d)
+
+set.seed(1999)
+prior <- extract.prior(m11.2 , n = 1e4)
+p <- sapply(1:4 , function(k)
+  inv_logit(prior$a + prior$b[, k]))
+dens(abs(p[, 1] - p[, 2]) , adj = 0.1)
+
+m11.3 <- quap(alist(
+  pulled_left ~ dbinom(1 , p) ,
+  logit(p) <- a + b[treatment] ,
+  a ~ dnorm(0 , 1.5),
+  b[treatment] ~ dnorm(0 , 0.5)
+) ,
+data = d)
+set.seed(1999)
+prior <- extract.prior(m11.3 , n = 1e4)
+p <- sapply(1:4 , function(k)
+  inv_logit(prior$a + prior$b[, k]))
+dens(abs(p[, 1] - p[, 2]) ,
+     adj = 0.1,
+     add = T,
+     col = "blue")
+mean(abs(p[, 1] - p[, 2]))
+mean(abs(p[, 1] - p[, 3]))
+mean(abs(p[, 1] - p[, 4]))
+mean(abs(p[, 2] - p[, 3]))
+mean(abs(p[, 2] - p[, 4]))
+mean(abs(p[, 3] - p[, 4]))
+```
+
+```{r}
+# prior trimmed data list
+dat_list <- list(
+  pulled_left = d$pulled_left,
+  actor = d$actor,
+  treatment = as.integer(d$treatment)
+)
+# particles in 11-dimensional space
+m11.4 <- ulam(
+  alist(
+    pulled_left ~ dbinom(1 , p) ,
+    logit(p) <- a[actor] + b[treatment] ,
+    a[actor] ~ dnorm(0 , 1.5),
+    b[treatment] ~ dnorm(0 , 0.5)
+  ) ,
+  data = dat_list,
+  chains = 4,
+  log_lik=TRUE
+)
+precis(m11.4 , depth = 2)
+
+post <- extract.samples(m11.4)
+p_left <- inv_logit(post$a)
+row_labels <- paste("Chimpanzee", 1:7)
+plot(precis(as.data.frame(p_left)) , xlim = c(0, 1), labels = row_labels)
+```
+
+```{r}
+labs <- c("R/N","L/N","R/P","L/P")
+plot( precis( m11.4 , depth=2 , pars="b" ) , labels=labs )
+```
+
+```{r}
+diffs <- list(db13 = post$b[, 1] - post$b[, 3],
+              db24 = post$b[, 2] - post$b[, 4])
+labs <- c("Right Differences", "Left Differences")
+plot(precis(diffs), labels = labs)
+```
+
+```{r}
+pl <- by( d$pulled_left , list( d$actor , d$treatment ) , mean )
+pl[1,]
+```
+
+```{r}
+plot(NULL,
+     xlim=c(1,28),
+     ylim=c(0,1),
+     xlab="" ,
+     ylab="proportion left lever",
+     xaxt="n",
+     yaxt="n" )
+axis(2, at=c(0,0.5,1), labels=c(0,0.5,1))
+abline( h=0.5 , lty=2 )
+for ( j in 1:7 ){
+  abline( v=(j-1)*4+4.5 , lwd=0.5 )
+}
+for ( j in 1:7 ){
+  text((j-1)*4+2.5 , 1.1 , concat("actor ",j) , xpd=TRUE )
+}
+for ( j in (1:7)[-2] ) {
+  lines( (j-1)*4+c(1,3) , pl[j,c(1,3)] , lwd=2 , col=rangi2 )
+  lines( (j-1)*4+c(2,4) , pl[j,c(2,4)] , lwd=2 , col=rangi2 )
+}
+points( 1:28 , t(pl) , pch=16 , col="white" , cex=1.7 )
+points( 1:28 , t(pl) , pch=c(1,1,16,16) , col=rangi2 , lwd=2 )
+yoff <- 0.01
+text( 1 , pl[1,1]-yoff , "R/N" , pos=1 , cex=0.8 )
+text( 2 , pl[1,2]+yoff , "L/N" , pos=3 , cex=0.8 )
+text( 3 , pl[1,3]-yoff , "R/P" , pos=1 , cex=0.8 )
+text( 4 , pl[1,4]+yoff , "L/P" , pos=3 , cex=0.8 )
+mtext( "observed Proportions\n" )
+
+
+dat <- list( actor=rep(1:7,each=4) , treatment=rep(1:4,times=7) )
+p_post <- link_ulam( m11.4 , data=dat )
+p_mu <- apply( p_post , 2 , mean )
+p_ci <- apply( p_post , 2 , PI )
+p_post <- colMeans(p_post)
+
+for ( j in 1:7) {
+  lines( (j-1)*4+c(1,3) , p_post[(j-1)*4+c(1,3)] , lwd=2 , col="black" )
+  lines( (j-1)*4+c(2,4) , p_post[(j-1)*4+c(2,4)] , lwd=2 , col="black" )
+}
+points( 1:28 , p_post[1:28] , pch=16 , col="white" , cex=1.7 )
+points( 1:28 , p_post[1:28] , pch=c(1,1,16,16) , col="black" , lwd=2 )
+```
+
+```{r}
+d$side <- d$prosoc_left + 1 # right 1, left 2
+d$cond <- d$condition + 1 # no partner 1, partner 2
+
+dat_list2 <- list(
+  pulled_left = d$pulled_left,
+  actor = d$actor,
+  side = d$side,
+  cond = d$cond )
+
+m11.5 <- ulam(
+  alist(
+    pulled_left ~ dbinom( 1 , p ) ,
+    logit(p) <- a[actor] + bs[side] + bc[cond] ,
+    a[actor] ~ dnorm( 0 , 1.5 ),
+    bs[side] ~ dnorm( 0 , 0.5 ),
+    bc[cond] ~ dnorm( 0 , 0.5 )
+) ,
+data=dat_list2 , chains=4 , log_lik=TRUE )
+```
+
+```{r}
+compare( m11.5 , m11.4 , func=LOO )
+```
+
+### Overthinkingg: Adding log-probability calculations to a Stan model
+
+```{r}
+post <- extract.samples( m11.4 , clean=FALSE )
+str(post)
+stancode(m11.4)
+
+m11.4_stan_code <- stancode(m11.4)
+m11.4_stan <- stan( model_code=m11.4_stan_code , data=dat_list , chains=4 )
+compare( m11.4_stan , m11.4 )
+```
+
+### 11.1.2. Relative shark and absolute penguin
+
+```{r}
+post <- extract.samples(m11.4)
+mean( exp(post$b[,4]-post$b[,2]) )
+```
+
+### 11.1.3. Aggregated binomial: Chimpanzees again, condensed
+
+```{r}
+d <- chimpanzees
+d$treatment <- 1 + d$prosoc_left + 2*d$condition
+d$side <- d$prosoc_left + 1 # right 1, left 2
+d$cond <- d$condition + 1 # no partner 1, partner 2
+d_aggregated <- aggregate(
+  d$pulled_left ,
+  list( treatment=d$treatment,
+        actor=d$actor,
+        side=d$side,
+        cond=d$cond ) ,
+  sum )
+colnames(d_aggregated)[5] <- "left_pulls"
+head(d_aggregated,8)
+```
+
+```{r}
+dat <- with(
+  d_aggregated ,
+  list(
+    left_pulls = left_pulls,
+    treatment = treatment,
+    actor = actor,
+    side = side,
+    cond = cond
+    )
+  )
+dat
+
+m11.6 <- ulam(
+  alist(
+    left_pulls ~ dbinom(18 , p) ,
+    logit(p) <- a[actor] + b[treatment] ,
+    a[actor] ~ dnorm(0 , 1.5) ,
+    b[treatment] ~ dnorm(0 , 0.5)
+    ),
+  data = dat ,
+  chains = 4 ,
+  log_lik = TRUE
+  )
+
+precis(m11.6 , depth = 2)
+precis(m11.4 , depth = 2)
+```
+
+```{r}
+compare( m11.6 , m11.4 , func=LOO )
+```
+
+```{r}
+# deviance of aggregated 6-in-9
+-2*dbinom(6,9,0.2,log=TRUE)
+# deviance of dis-aggregated
+-2*sum(dbern(c(1,1,1,1,1,1,0,0,0),0.2,log=TRUE))
+```
+
+```{r}
+( k <- PSISk(m11.6) )
+```
+
+### 11.1.4. Aggregated binomial: Graduate school admissions
+
+```{r}
+data(UCBadmit)
+d <- UCBadmit
+
+d
+d$gid <- ifelse( d$applicant.gender=="male" , 1 , 2 )
+
+m11.7 <- quap(
+  alist(
+    admit ~ dbinom( applications , p ) ,
+    logit(p) <- a[gid] ,
+    a[gid] ~ dnorm( 0 , 1.5 )
+    ),
+  data=d )
+
+precis( m11.7 , depth=2 )
+
+post <- extract.samples(m11.7)
+diff_a <- post$a[,1] - post$a[,2]
+diff_p <- inv_logit(post$a[,1]) - inv_logit(post$a[,2])
+precis( list( diff_a=diff_a , diff_p=diff_p ) )
+```
+
+# Deaggregating data for fun
+```{r}
+df <- d[rep(seq(1, nrow(d)), d$applications),]
+result <- c()
+for (i in 1:nrow(d)) result <- c(result, rep(1,d$admit[i]), rep(0,d$reject[i]))
+df$result <- result
+df$dept_id <- as.integer(df$dept)
+
+d_slim <- list(admit = df$result,
+               gid = df$gid,
+               dept_id = df$dept_id
+)
+d_slim
+
+m11.7a <- ulam(
+  alist(
+    admit ~ dbinom( 1 , p ) ,
+    logit(p) <- a[gid] ,
+    a[gid] ~ dnorm( 0 , 1.5 )
+    ),
+  data=d_slim, chains = 4, cores = 4, log_lik = T )
+
+precis( m11.7a , depth=2 )
+
+post <- extract.samples(m11.7a)
+diff_a <- post$a[,1] - post$a[,2]
+diff_p <- inv_logit(post$a[,1]) - inv_logit(post$a[,2])
+precis( list( diff_a=diff_a , diff_p=diff_p ) )
+```
+
+
+```{r}
+postcheck( m11.7 , n=1e4 )
+# draw lines connecting points from same dept
+d$dept_id <- rep( 1:6 , each=2 )
+for ( i in 1:6 ) {
+  x <- 1 + 2*(i-1)
+  y1 <- d$admit[x]/d$applications[x]
+  y2 <- d$admit[x+1]/d$applications[x+1]
+  lines( c(x,x+1) , c(y1,y2) , col=rangi2 , lwd=2 )
+  text( x+0.5 , (y1+y2)/2 + 0.05 , d$dept[x] , cex=0.8 , col=rangi2 )
+}
+```
+
+```{r}
+m11.8 <- quap(
+  alist(
+    admit ~ dbinom(applications , p) ,
+    logit(p) <- a[gid] + delta[dept_id] ,
+    a[gid] ~ dnorm(0 , 1.5) ,
+    delta[dept_id] ~ dnorm(0 , 1.5)
+    ),
+  data = d)
+precis(m11.8 , depth = 2)
+
+```
+
+```{r}
+post <- extract.samples(m11.8)
+diff_a <- post$a[,1] - post$a[,2]
+diff_p <- inv_logit(post$a[,1]) - inv_logit(post$a[,2])
+precis( list( diff_a=diff_a , diff_p=diff_p ) )
+```
+
+```{r}
+pg <- sapply( 1:6 , function(k)
+  d$applications[d$dept_id==k]/sum(d$applications[d$dept_id==k]) )
+rownames(pg) <- c("male","female")
+colnames(pg) <- unique(d$dept)
+round( pg , 2 )
+```
+
+```{r}
+postcheck(m11.8)
+pairs(m11.8)
+```
+
+### 11.1.5. Multinomial and categorical models
+
+```{r}
+# simulate career choices among 500 individuals
+N <- 500 # number of individuals
+income <- 1:3 # expected income of each career
+score <- 0.5*income # scores for each career, based on income
+# next line converts scores to probabilities
+p <- softmax(score[1],score[2],score[3])
+# now simulate choice
+# outcome career holds event type values, not counts
+career <- rep(NA,N) # empty vector of choices for each individual
+# sample chosen career for each individual
+for ( i in 1:N ) career[i] <- sample( 1:3 , size=1 , prob=p )
+
+career
+
+# fit the model, using dcategorical and softmax link
+m10.16 <- map(
+  alist(
+    career ~ dcategorical( softmax(0,s2,s3) ),
+    s2 <- b*2, # linear model for event type 2
+    s3 <- b*3, # linear model for event type 3
+    b ~ dnorm(0,5)
+    ),
+  data=list(career=career))
+
+precis(m10.16, depth = 2)
+
+```
+
+```{r}
+N <- 100
+# simulate family incomes for each individual
+family_income <- runif(N)
+# assign a unique coefficient for each type of event
+b <- (1:-1)
+career <- rep(NA,N) # empty vector of choices for each individual
+for ( i in 1:N ) {
+  score <- 0.5*(1:3) + b*family_income[i]
+  p <- softmax(score[1],score[2],score[3])
+  career[i] <- sample( 1:3 , size=1 , prob=p )
+  }
+
+m10.17 <- map(
+  alist(
+    career ~ dcategorical( softmax(0,s2,s3) ),
+    s2 <- a2 + b2*family_income,
+    s3 <- a3 + b3*family_income,
+    c(a2,a3,b2,b3) ~ dnorm(0,5)
+    ),
+  data=list(career=career,family_income=family_income)
+  )
+
+precis(m10.17, depth = 2)
+```
+
+## 11.2. Poisson regression
+
+```{r}
+y <- rbinom(1e5,1000,1/1000)
+c( mean(y) , var(y) )
+```
+
+### 11.2.1. Example: Oceanic tool complexity
+
+```{r}
+data(Kline)
+d <- Kline
+d$P <- scale( log(d$population) )
+d$contact_id <- ifelse( d$contact=="high" , 2 , 1 )
+d
+```
+
+```{r}
+curve( dlnorm( x , 0 , 10 ) , from=0 , to=100 , n=200 )
+a <- rnorm(1e4,0,10)
+lambda <- exp(a)
+mean( lambda )
+```
+
+```{r}
+curve( dlnorm( x , 0 , 10 ) , from=0 , to=100 , n=200, col = "black")
+curve( dlnorm( x , 3 , 0.5 ) , from=0 , to=100 , n=200, col = "blue", add = T)
+curve( dlnorm( x , 3 , 1 ) , from=0 , to=100 , n=200, col = "red", add = T)
+curve( dlnorm( x , 3 , 0.25 ) , from=0 , to=100 , n=200, col = "purple", add = T)
+curve( dlnorm( x , 4 , 1 ) , from=0 , to=100 , n=200, col = "green", add = T)
+```
+
+```{r}
+N <- 100
+a <- rnorm(N , 3 , 0.5)
+b <- rnorm(N , 0 , 10)
+plot(NULL , xlim = c(-2, 2) , ylim = c(0, 100))
+for (i in 1:N){
+  curve(exp(a[i] + b[i] * x) , add = TRUE , col = col.alpha("black", 0.5))
+}
+
+a <- rnorm(N , 3 , 0.5)
+b <- rnorm(N , 0 , 1)
+for (i in 1:N){
+  curve(exp(a[i] + b[i] * x) , add = TRUE , col = col.alpha("blue", 0.5))
+}
+
+a <- rnorm(N , 3 , 0.5)
+b <- rnorm(N , 0 , 0.5)
+for (i in 1:N){
+  curve(exp(a[i] + b[i] * x) , add = TRUE , col = col.alpha("red", 0.5))
+}
+
+a <- rnorm(N , 3 , 0.5)
+b <- rnorm(N , 0 , 0.2)
+for (i in 1:N){
+  curve(exp(a[i] + b[i] * x) , add = TRUE , col = col.alpha("green", 0.5))
+}
+```
+
+```{r}
+x_seq <- seq( from=log(100) , to=log(200000) , length.out=100 )
+lambda <- sapply( x_seq , function(x) exp( a + b*x ) )
+par(mfrow = c(1,2))
+plot( NULL , xlim=range(x_seq) , ylim=c(0,500) , xlab="log population" , ylab="total tools" )
+for ( i in 1:N ){
+  lines( x_seq , lambda[i,] , col=col.alpha("black",0.5) , lwd=1.5 )
+}
+plot( NULL , xlim=range(exp(x_seq)) , ylim=c(0,500) , xlab="population" , ylab="total tools" )
+for ( i in 1:N ){
+  lines( exp(x_seq) , lambda[i,] , col=col.alpha("black",0.5) , lwd=1.5 )
+}
+```
+
+```{r}
+dat <- list(T = d$total_tools ,
+            P = d$P ,
+            cid = d$contact_id)
+# intercept only
+m11.9 <- ulam(
+  alist(
+    T ~ dpois(lambda),
+    log(lambda) <- a,
+    a ~ dnorm(3, 0.5)
+    ), data = dat, chains = 4, log_lik = TRUE
+)
+# interaction model
+m11.10 <- ulam(
+  alist(
+    T ~ dpois(lambda),
+    log(lambda) <- a[cid] + b[cid] * P,
+    a[cid] ~ dnorm(3 , 0.5),
+    b[cid] ~ dnorm(0 , 0.2)
+  ), data = dat, chains = 4, log_lik = TRUE
+)
+compare( m11.9 , m11.10 , func=LOO )
+```
+
+```{r}
+par(mfrow=c(1,1))
+k <- PSISk(m11.10)
+plot(
+  dat$P ,
+  dat$T ,
+  xlab = "log population (std)" ,
+  ylab = "total tools" ,
+  col = rangi2 ,
+  pch = ifelse(dat$cid == 1 , 1 , 16) ,
+  lwd = 2 ,
+  ylim = c(0, 75) ,
+  cex = 1 + normalize(k)
+)
+# set up the horizontal axis values to compute predictions at
+ns <- 100
+P_seq <- seq(from = -1.4 ,
+             to = 3 ,
+             length.out = ns)
+# predictions for cid=1 (low contact)
+lambda <- link(m11.10 , data = data.frame(P = P_seq , cid = 1))
+lmu <- apply(lambda , 2 , mean)
+lci <- apply(lambda , 2 , PI)
+lines(P_seq , lmu , lty = 2 , lwd = 1.5)
+shade(lci , P_seq , xpd = TRUE)
+# predictions for cid=2 (high contact)
+lambda <- link(m11.10 , data = data.frame(P = P_seq , cid = 2))
+lmu <- apply(lambda , 2 , mean)
+lci <- apply(lambda , 2 , PI)
+lines(P_seq , lmu , lty = 1 , lwd = 1.5)
+shade(lci , P_seq , xpd = TRUE)
+```
+
+```{r}
+plot(
+  d$population ,
+  d$total_tools ,
+  xlab = "population" ,
+  ylab = "total tools" ,
+  col = rangi2 ,
+  pch = ifelse(dat$cid == 1 , 1 , 16) ,
+  lwd = 2 ,
+  ylim = c(0, 75) ,
+  cex = 1 + normalize(k)
+)
+ns <- 100
+P_seq <- seq(from = -5 ,
+             to = 3 ,
+             length.out = ns)
+# 1.53 is sd of log(population)
+# 9 is mean of log(population)
+pop_seq <- exp(P_seq * 1.53 + 9)
+lambda <- link(m11.10 , data = data.frame(P = P_seq , cid = 1))
+lmu <- apply(lambda , 2 , mean)
+lci <- apply(lambda , 2 , PI)
+lines(pop_seq , lmu , lty = 2 , lwd = 1.5)
+shade(lci , pop_seq , xpd = TRUE)
+lambda <- link(m11.10 , data = data.frame(P = P_seq , cid = 2))
+lmu <- apply(lambda , 2 , mean)
+lci <- apply(lambda , 2 , PI)
+lines(pop_seq , lmu , lty = 1 , lwd = 1.5)
+shade(lci , pop_seq , xpd = TRUE)
+```
+
+### Overthinking: Modeling tool innovation
+```{r}
+dat2 <-
+  list(
+    T = d$total_tools,
+    P = d$population,
+    cid = d$contact_id
+  )
+
+m11.11 <- ulam(
+  alist(
+    T ~ dpois(lambda),
+    lambda <- exp(a[cid]) * P^b[cid]/g,
+    a[cid] ~ dnorm(1, 1),
+    b[cid] ~ dexp(1),
+    g ~ dexp(1)
+  ),
+  data = dat2 ,
+  chains = 4 ,
+  log_lik = TRUE
+)
+k <- PSISk(m11.11)
+
+plot(
+  d$population ,
+  d$total_tools ,
+  xlab = "population" ,
+  ylab = "total tools" ,
+  col = rangi2 ,
+  pch = ifelse(dat2$cid == 1 , 1 , 16) ,
+  lwd = 2 ,
+  ylim = c(0, 75) ,
+  cex = 1 + normalize(k)
+)
+ns <- 100
+P_seq <- seq(from = -5 ,
+             to = 3 ,
+             length.out = ns)
+# 1.53 is sd of log(population)
+# 9 is mean of log(population)
+pop_seq <- exp(P_seq * 1.53 + 9)
+lambda <- link(m11.11 , data = data.frame(P = pop_seq , cid = 1))
+lmu <- apply(lambda , 2 , mean)
+lci <- apply(lambda , 2 , PI)
+lines(pop_seq , lmu , lty = 2 , lwd = 1.5)
+shade(lci , pop_seq , xpd = TRUE)
+lambda <- link(m11.11 , data = data.frame(P = pop_seq , cid = 2))
+lmu <- apply(lambda , 2 , mean)
+lci <- apply(lambda , 2 , PI)
+lines(pop_seq , lmu , lty = 1 , lwd = 1.5)
+shade(lci , pop_seq , xpd = TRUE)
+```
+
+### 11.2.2. Negative binomial (gamma-Poisson) models
+### 11.2.3. Example: Exposure and the offset
+
+```{r}
+num_days <- 30
+y <- rpois( num_days , 1.5 )
+y
+
+num_weeks <- 4
+y_new <- rpois( num_weeks , 0.5*7 )
+y_new
+
+y_all <- c( y , y_new )
+y_all
+exposure <- c( rep(1,30) , rep(7,4) )
+monastery <- c( rep(0,30) , rep(1,4) )
+d <- data.frame( y=y_all , days=exposure , monastery=monastery )
+d
+
+# compute the offset
+d$log_days <- log( d$days )
+# fit the model
+
+m11.12.1 <- quap(
+  alist(
+    y ~ dpois( lambda ),
+    log(lambda) <- log_days + a + b*monastery,
+    a ~ dnorm( 0 , 1 ),
+    b ~ dnorm( 0 , 1 )
+    ),
+  data=d)
+
+m11.12 <- ulam(
+  alist(
+    y ~ dpois( lambda ),
+    log(lambda) <- log_days + a + b*monastery,
+    a ~ dnorm( 0 , 1 ),
+    b ~ dnorm( 0 , 1 )
+    ),
+  data=d[,-2], chains = 4, cores = 4, log_lik = T )
+
+post <- extract.samples( m11.12.1 )
+lambda_old <- exp( post$a )
+lambda_new <- exp( post$a + post$b )
+precis( data.frame( lambda_old , lambda_new ) )
+
+post <- extract.samples( m11.12 )
+lambda_old <- exp( post$a )
+lambda_new <- exp( post$a + post$b )
+precis( data.frame( lambda_old , lambda_new ) )
+
+compare(m11.12, m11.12.1)
+```
+### 11.2.4. Multinomial in disguise as Poisson
+
+```{r}
+data(UCBadmit)
+d <- UCBadmit
+
+# binomial model of overall admission probability
+set.seed(100)
+m_binom <- ulam(
+  alist(
+    admit ~ dbinom(applications,p),
+    logit(p) <- a,
+    a ~ dnorm(0,100)
+    ),
+  data=d[,c(3,5)])
+
+# Poisson model of overall admission rate and rejection rate
+d$rej <- d$reject # 'reject' is a reserved word
+m_pois <- ulam(
+  alist(
+    admit ~ dpois(lambda1),
+    rej ~ dpois(lambda2),
+    log(lambda1) <- a1,
+    log(lambda2) <- a2,
+    c(a1,a2) ~ dnorm(0,100)
+    ),
+  data=d[,c(3,5,6)] , chains=4 , cores=4 )
+
+logistic(coef(m_binom))
+
+precis(m_pois, depth = 2)
+coef(m_pois)
+k <- as.numeric(coef(m_pois))
+k
+
+exp(k[2])/(exp(k[2])+exp(k[1]))
+```
+### Overthinking: Multinomial-Poisson transformation
+
+## 11.3. Censoring and survival
+### Overthinking: Generative models for exponential and gamma distributions
+
+```{r}
+N <- 5
+x <- replicate( 1e5 , min(runif(N,1,100)) )
+dens(x, col = "blue")
+N <- 2
+x <- replicate( 1e5 , min(runif(N,1,100)) )
+dens(x, add = T)
+
+N <- 10
+M <- 2
+x <- replicate( 1e5 , sort(runif(N,1,100))[M])
+dens(x)
+N <- 10
+M <- 5
+x <- replicate( 1e5 , sort(runif(N,1,100))[M])
+dens(x, col = "blue", add = T)
+```
+
+### 11.3.1. Simulated cats
+### 11.3.2. Actual cats
+
+```{r}
+data(AustinCats)
+d <- AustinCats
+d$adopt <- ifelse(d$out_event == "Adoption" , 1L , 0L)
+dat <- list(
+  days_to_event = as.numeric(d$days_to_event),
+  color_id = ifelse(d$color == "Black" , 1L , 2L) ,
+  adopted = d$adopt
+)
+m11.14 <- ulam(
+  alist(
+    days_to_event | adopted == 1 ~ exponential(lambda),
+    days_to_event | adopted == 0 ~ custom(exponential_lccdf(!Y |
+                                                              lambda)),
+    lambda <- 1.0 / mu,
+    log(mu) <- a[color_id],
+    a[color_id] ~ normal(0, 1)
+  ),
+  data = dat ,
+  chains = 4 ,
+  cores = 4
+)
+precis(m11.14 , 2)
+
+post <- extract.samples( m11.14 )
+post$D <- exp(post$a)
+precis( post , 2 )
+```
+
+### Overthinking: Custom distributions in Stan
+
+```{r}
+# lccdf = log complementary cumulative density function
+# lpdf = log probability density function
+stancode(m11.14)
+```
+
+
+## 11.4. Summary
+
+# 12 Monsters and Mixtures
+## 12.1. Over-dispersed outcomes
+### 12.1.1. Beta-binomial
+
+```{r}
+pbar <- 0.5
+theta <- 5
+curve( dbeta2(x,pbar,theta) , from=0 , to=1 ,
+xlab="probability" , ylab="Density" )
+
+theta <- 2
+curve( dbeta2(x,pbar,theta) , from=0 , to=1 ,
+xlab="probability" , ylab="Density", add = T, col = "red")
+
+theta <- 1
+curve( dbeta2(x,pbar,theta) , from=0 , to=1 ,
+xlab="probability" , ylab="Density", add = T, col = "blue")
+
+theta <- 10
+curve( dbeta2(x,pbar,theta) , from=0 , to=1 ,
+xlab="probability" , ylab="Density", add = T, col = "green")
+
+theta <- 0.5
+curve( dbeta2(x,pbar,theta) , from=0 , to=1 ,
+xlab="probability" , ylab="Density", add = T, col = "purple")
+
+pbar <- 0.1
+theta <- 5
+curve( dbeta2(x,pbar,theta) , from=0 , to=1 ,
+xlab="probability" , ylab="Density" )
+
+theta <- 2
+curve( dbeta2(x,pbar,theta) , from=0 , to=1 ,
+xlab="probability" , ylab="Density", add = T, col = "red")
+
+theta <- 1
+curve( dbeta2(x,pbar,theta) , from=0 , to=1 ,
+xlab="probability" , ylab="Density", add = T, col = "blue")
+
+theta <- 10
+curve( dbeta2(x,pbar,theta) , from=0 , to=1 ,
+xlab="probability" , ylab="Density", add = T, col = "green")
+
+theta <- 0.5
+curve( dbeta2(x,pbar,theta) , from=0 , to=1 ,
+xlab="probability" , ylab="Density", add = T, col = "purple")
+```
+
+```{r}
+data(UCBadmit)
+d <- UCBadmit
+d$gid <- ifelse( d$applicant.gender=="male" , 1L , 2L )
+dat <- list(A=d$admit,
+            N=d$applications,
+            gid=d$gid)
+
+m12.1 <- ulam(
+  alist(
+    A ~ dbetabinom( N , pbar , theta ),
+    logit(pbar) <- a[gid],
+    a[gid] ~ dnorm( 0 , 1.5 ),
+    theta ~ dexp(1)
+    ), data=dat, cores = 4, chains=4 )
+
+post <- extract.samples(m12.1)
+post$da <- post$a[, 1] - post$a[, 2]
+precis(post, depth = 2)
+```
+
+```{r}
+gid <- 2
+# draw posterior mean beta distribution
+curve(
+  dbeta2(x,mean(logistic(post$a[,gid])),mean(post$theta)),
+  from=0,
+  to=1,
+  ylab="Density",
+  xlab="probability admit",
+  ylim=c(0,3),
+  lwd=2 )
+# draw 50 beta distributions sampled from posterior
+for ( i in 1:50 ) {
+p <- logistic( post$a[i,gid] )
+theta <- post$theta[i]
+curve( dbeta2(x,p,theta) , add=TRUE , col=col.alpha("black",0.2) )
+}
+mtext( "distribution of female admission rates" )
+
+postcheck(m12.1)
+```
+
+### 12.1.2. Negative-binomial or gamma-Poisson
+
+```{r}
+data(Kline)
+d <- Kline
+d$P <- standardize( log(d$population) )
+d$contact_id <- ifelse( d$contact=="high" , 2L , 1L )
+dat2 <- list(
+  T = d$total_tools,
+  P = d$population,
+  cid = d$contact_id )
+
+m12.3 <- ulam(
+  alist(
+    T ~ dgampois( lambda, phi),
+    lambda <- exp(a[cid])*P^b[cid]/g,
+    a[cid] ~ dnorm(1,1),
+    b[cid] ~ dexp(1),
+    g ~ dexp(1),
+    phi ~ dexp(1)
+    ),
+  data = dat2, chains = 4, cores = 4, log_lik = TRUE)
+
+postcheck(m12.3)
+```
+
+### 12.1.3. Over-dispersion, entropy, and information criteria
+### Overthinking: Continuous mixtures
+
+## 12.2. Zero-inflated outcomes
+### 12.2.1. Example: Zero-inflated Poisson
+
+```{r}
+# define parameters
+prob_drink <- 0.2 # 20% of days
+rate_work <- 1 # average 1 manuscript per day
+
+# sample one year of production
+N <- 365
+
+# simulate days monks drink
+set.seed(365)
+drink <- rbinom( N , 1 , prob_drink )
+drink
+# simulate manuscripts completed
+y <- (1-drink)*rpois( N , rate_work )
+
+simplehist( y , xlab="manuscripts completed" , lwd=4 )
+zeros_drink <- sum(drink)
+zeros_work <- sum(y==0 & drink==0)
+zeros_total <- sum(y==0)
+lines( c(0,0) , c(zeros_work,zeros_total) , lwd=4 , col=rangi2 )
+```
+
+```{r}
+m12.4 <- ulam(
+  alist(
+    y ~ dzipois(p, lambda),
+    logit(p) <- ap,
+    log(lambda) <- al,
+    ap ~ dnorm(-1.5, 1),
+    al ~ dnorm(1, 0.5)
+    ),
+  data=list(y=as.integer(y)), chains=4 )
+precis( m12.4 )
+
+inv_logit(-1.28) # probability drink
+exp(0.01) # rate finish manuscripts, when not drinking
+```
+
+### Overthinking: Zero-inflated Poisson calculations in Stan
+
+```{r}
+m12.4_alt <- ulam(
+  alist(
+    y|y>0 ~ custom( log1m(p) + poisson_lpmf(y|lambda) ),
+    y|y==0 ~ custom( log_mix( p , 0 , poisson_lpmf(0|lambda) ) ),
+    logit(p) <- ap,
+    log(lambda) <- al,
+    ap ~ dnorm(-1.5,1),
+    al ~ dnorm(1,0.5)
+    ),
+  data=list(y=as.integer(y)) , chains=4, cores = 4 )
+
+stancode(m12.4_alt)
+```
+

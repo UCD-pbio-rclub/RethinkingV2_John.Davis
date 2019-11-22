@@ -1,0 +1,327 @@
+---
+title: "11_15_2019_HW"
+author: "John D."
+date: "11/12/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(rethinking)
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
+```
+
+### 10H3. The data contained in library(MASS);data(eagles) are records of salmon pirating attempts by Bald Eagles in Washington State. See ?eagles for details. While one eagle feeds, sometimes another will swoop in and try to steal the salmon from it. Call the feeding eagle the “victim” and the thief the “pirate.” Use the available data to build a binomial GLM of successful pirating attempts.  
+
+a. Consider the following model:  
+
+$$
+y_i ∼ Binomial(n_i, p_i) \\
+log \frac{p_i}{1 − p_i} = \alpha + \beta_PP_i + \beta_VV_i + \beta_AA_i \\
+\alpha ∼ Normal(0, 10) \\
+\beta_P ∼ Normal(0, 5) \\
+\beta_V ∼ Normal(0, 5) \\
+\beta_A ∼ Normal(0, 5)
+$$
+where y is the number of successful attempts, n is the total number of attempts, P is a dummy variable indicating whether or not the pirate had large body size, V is a dummy variable indicating whether or not the victim had large body size, and finally A is a dummy variable indicating whether or not the pirate was an adult. Fit the model above to the eagles data, using both map and map2stan. Is the quadratic approximation okay?  
+
+```{r}
+library(MASS)
+data(eagles)
+d <- eagles
+d
+
+d$P <- ifelse(d$P == "S", 0L, 1L)
+d$A <- ifelse(d$A == "I", 0L, 1L)
+d$V <- ifelse(d$V == "S", 0L, 1L)
+d
+
+m_quap <- quap(
+  alist(
+    y ~ dbinom(n, p),
+    logit(p) <- a + Bp*P + Bv*V + Ba*A,
+    a ~ dnorm(0,10),
+    c(Bp,Bv,Ba) ~ dnorm(0,5)
+  ), data = d
+)
+
+m_ulam <- ulam(
+  alist(
+    y ~ dbinom(n, p),
+    logit(p) <- a + Bp*P + Bv*V + Ba*A,
+    a ~ dnorm(0,10),
+    c(Bp,Bv,Ba) ~ dnorm(0,5)
+  ), data = d, chains = 4, cores = 4, log_lik = T
+)
+
+compare(m_quap, m_ulam)
+
+precis(m_quap, depth = 2)
+precis(m_ulam, depth = 2)
+
+pairs(m_quap)
+pairs(m_ulam)
+
+plot(coeftab(m_quap, m_ulam))
+```
+
+Looking at the coefficients, the two models look similar. In the pairs plot there appears to be a higher correlation of coefficients in the quadratic model compared to the stan model.
+
+b. Now interpret the estimates. If the quadratic approximation turned out okay, then it’s okay to use the map estimates. Otherwise stick to map2stan estimates. Then plot the posterior predictions. Compute and display both (1) the predicted probability of success and its 89% interval for each row (i) in the data, as well as (2) the predicted success count and its 89% interval. What different information does each type of posterior prediction provide?  
+
+```{r}
+precis(m_ulam, depth = 2)
+post <- extract.samples(m_ulam)
+mean(inv_logit(post$a)) # success when pirate and victim both small and pirate not an adult
+mean(inv_logit(post$a + post$Bp)) # success when pirate is big and young and victim is small
+
+pred_dat <- d[,2:5]
+pred_dat
+preds <- link(m_ulam, data = pred_dat)
+
+head(preds)
+
+summary(preds)
+
+# pred mean prob
+mu <- apply(preds, 2, mean)
+ci <- apply(preds, 2, HPDI)
+labels <- paste("PVA:", paste0(pred_dat$P,pred_dat$V,pred_dat$A))
+obs_succ <- d$y/d$n
+pred_df <- data.frame(
+  Mean = mu,
+  Lower_89 = ci[1,],
+  Upper_89 = ci[2,],
+  Case = labels,
+  Observed = obs_succ
+)
+
+ggplot(pred_df, aes(x = Case, y = Mean)) +
+  geom_pointrange(aes(ymin = Lower_89, ymax = Upper_89)) +
+  geom_point(aes(y = Observed), color = "blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0)) +
+  ylab("Predicted probability")
+  
+# pred mean success
+pred_df$n <- d$n
+pred_df$y <- d$y
+pred_df$Predicted <- pred_df$Mean*pred_df$n 
+pred_df
+
+ggplot(pred_df, aes(x = Case, y = Predicted)) +
+  geom_pointrange(aes(ymin = Lower_89*n, ymax = Upper_89*n)) +
+  geom_point(aes(y = y), color = "blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0)) +
+  ylab("Predicted successful")
+
+```
+
+
+c. Now try to improve the model. Consider an interaction between the pirate’s size and age (immature or adult). Compare this model to the previous one, using WAIC. Interpret.
+
+```{r}
+m_ulam_int <- ulam(
+  alist(
+    y ~ dbinom(n, p),
+    logit(p) <- a + Bp*P + Bv*V + Ba*A + Bpa*P*A,
+    a ~ dnorm(0,10),
+    c(Bp,Bv,Ba,Bpa) ~ dnorm(0,5)
+  ), data = d, chains = 4, cores = 4, log_lik = T
+)
+
+compare(m_ulam,m_ulam_int)
+```
+
+On face value it looks like the interaction model works better based on WAIC
+
+### 11E3. When count data are zero-inflated, using a model that ignores zero-inflation will tend to induce which kind of inferential error?
+
+It will cause us to think the rate is lower than it really is since zeros are arising due the event being impossible to take place
+
+### 11E4. Over-dispersion is common in count data. Give an example of a natural process that might produce over-dispersed counts. Can you also give an example of a process that might produce underdispersed counts?
+
+The rate of germination for seeds in a wooded area could be overdispersed in you do not take into account the amount of sunlight hitting each area being observed.  
+
+When autocorrelation is occurring due to groups experiencing a similar effect causing them to be more similar than chance. I don't maybe using a fertilizer which maximizes growth in every condition so all samples look the same due to the fertilizer.
+
+
+### 11M3. Can you modify the derivation of the zero-inflated Poisson distribution (ZIPoisson) from the chapter to construct a zero-inflated binomial distribution?
+
+PASS
+
+### 11H1. In 2014, a paper was published that was entitled “Female hurricanes are deadlier than male hurricanes.”  As the title suggests, the paper claimed that hurricanes with female names have caused greater loss of life, and the explanation given is that people unconsciously rate female hurricanes as less dangerous and so are less likely to evacuate.
+### Statisticians severely criticized the paper after publication. Here, you’ll explore the complete data used in the paper and consider the hypothesis that hurricanes with female names are deadlier. Load the data with:
+
+```{r}
+data(Hurricanes)
+d <- Hurricanes
+d
+
+summary(d)
+```
+
+### Acquaint yourself with the columns by inspecting the help `?Hurricanes`
+### In this problem, you’ll focus on predicting deaths using femininity of each hurricane’s name. Fit and interpret the simplest possible model, a Poisson model of deaths using femininity as a predictor. You can use map or map2stan. Compare the model to an intercept-only Poisson model of deaths. How strong is the association between femininity of name and deaths? Which storms does the model fit (retrodict) well? Which storms does it fit poorly?
+
+```{r}
+
+ggplot(d, aes(femininity,deaths)) +
+  geom_point()
+
+# 2 clear peaks
+
+# possible intercepts
+
+curve( dlnorm( x , 0 , 10 ) , from=0 , to=100 , n=200, col = "black")
+curve( dlnorm( x , 3 , 0.5 ) , from=0 , to=100 , n=200, col = "blue", add = T)
+curve( dlnorm( x , 3 , 1 ) , from=0 , to=100 , n=200, col = "red", add = T)
+curve( dlnorm( x , 3 , 0.25 ) , from=0 , to=100 , n=200, col = "purple", add = T)
+curve( dlnorm( x , 4 , 1 ) , from=0 , to=100 , n=200, col = "green", add = T)
+
+basic <- ulam(
+  alist(
+    deaths ~ dpois(lambda),
+    log(lambda) <- a,
+    a ~ dnorm(3,1)
+  ), data = d, chains = 4, cores = 4, log_lik = T
+)
+
+precis(basic)
+traceplot(basic)
+par(mfrow=c(1,1))
+
+post <- extract.samples(basic)
+mean(exp(mean(post$a)))
+
+# intercept is pretty close to the mean of the dataset
+
+N <- 100
+a <- rnorm(N , 3 , 1)
+b <- rnorm(N , 0 , 10)
+plot(NULL , xlim = c(-2, 2) , ylim = c(0, 100))
+for (i in 1:N){
+  curve(exp(a[i] + b[i] * x) , add = TRUE , col = col.alpha("black", 0.5))
+}
+
+a <- rnorm(N , 3 , 1)
+b <- rnorm(N , 0 , 1)
+for (i in 1:N){
+  curve(exp(a[i] + b[i] * x) , add = TRUE , col = col.alpha("blue", 0.5))
+}
+
+a <- rnorm(N , 3 , 1)
+b <- rnorm(N , 0 , 0.5)
+for (i in 1:N){
+  curve(exp(a[i] + b[i] * x) , add = TRUE , col = col.alpha("red", 0.5))
+}
+
+a <- rnorm(N , 3 , 1)
+b <- rnorm(N , 0 , 0.2)
+for (i in 1:N){
+  curve(exp(a[i] + b[i] * x) , add = TRUE , col = col.alpha("green", 0.5))
+}
+
+
+a <- rnorm(N , 3 , 1)
+b <- rnorm(N , 0 , 0.1)
+plot(NULL , xlim = c(-2, 2) , ylim = c(0, 100))
+for (i in 1:N){
+  curve(exp(a[i] + b[i] * x), add = TRUE)
+}
+# pick last one
+
+advanced <- ulam(
+  alist(
+    deaths ~ dpois(lambda),
+    log(lambda) <- a + Bf*femininity,
+    a ~ dnorm(3,1),
+    Bf ~ dnorm(0,0.1)
+  ), data = d, chains = 4, cores = 4, log_lik = T
+)
+
+compare(basic,advanced)
+
+#WAICs are slightly different, but all the weight goes to the model that includes femininity
+
+precis(advanced)
+
+# Bf has a very low effect, but its still positive
+traceplot(advanced)
+par(mfrow=c(1,1))
+par(ask = F)
+postcheck(advanced)
+
+ggplot(d, aes(femininity,deaths, color = as.factor(female))) +
+  geom_point()
+
+```
+
+The effect of femininity is there, but it is extremely low. Model is only good at predicting average hurricanes, completely misses the really deadly ones.
+
+
+### 11H2. Counts are nearly always over-dispersed relative to Poisson. So fit a gamma-Poisson (aka negative-binomial) model to predict deaths using femininity. Show that the over-dispersed model no longer shows as precise a positive association between femininity and deaths, with an 89% interval that overlaps zero. Can you explain why the association diminished in strength?
+
+```{r}
+over <- ulam(
+  alist(
+    deaths ~ dgampois(lambda, phi),
+    log(lambda) <- a + Bf*femininity,
+    a ~ dnorm(3,1),
+    Bf ~ dnorm(0,0.1),
+    phi ~ dexp(1)
+  ), data = d, chains = 4, cores = 4, log_lik = T
+)
+
+compare(basic,advanced,over)
+
+precis(over)
+
+# Bf now sits on both sides of 0
+traceplot(over)
+par(mfrow=c(1,1))
+```
+
+The association diminished in strength since now the model can compensate for the variance. It is now less certain about the effect of femininity now
+
+### 11H6. The data in data(Fish) are records of visits to a national park. See ?Fish for details. The question of interest is how many fish an average visitor takes per hour, when fishing. The problem is that not everyone tried to fish, so the fish_caught numbers are zero-inflated. As with the monks example in the chapter, there is a process that determines who is fishing (working) and another process that determines fish per hour (manuscripts per day), conditional on fishing (working). We want to model both. Otherwise we’ll end up with an underestimate of rate of fish extraction from the park. You will model these data using zero-inflated Poisson GLMs. Predict fish_caught as a function of any of the other variables you think are relevant. One thing you must do, however, is use a proper Poisson offset/exposure in the Poisson portion of the zero-inflated model. Then use the hours variable to construct the offset. This will adjust the model for the differing amount of time individuals spent in the park.
+
+```{r}
+data(Fish)
+d <- Fish
+d$log_hours <- log(d$hours)
+summary(d)
+
+# assuming less than 10% of people at park fish
+
+fishing <- ulam(
+  alist(
+    fish_caught ~ dzipois(p,lambda),
+    logit(p) <- ap,
+    log(lambda) <- a + log_hours + Bp*persons + Bb*livebait,
+    ap ~ dnorm(-2, 1),
+    a ~ dnorm(3,1),
+    Bp ~ dnorm(0, .2),
+    Bb ~ dnorm(0, .1)
+  ), data = d, chains = 4, cores = 4, log_lik = T
+)
+
+precis(fishing)
+traceplot(fishing)
+
+inv_logit(-1.39) # assumes ~20% fish
+exp(-2.43) #0.09 fish caught an hour by default
+exp(-2.43 + 4*.65 + .29) # 1.58 fish an hour if 4 people using live bait
+
+preds <- link(fishing, data = d[,c(1,2,4,7)])
+pred_caught <- colMeans(preds$lambda*preds$p[,1])
+
+plot(d$fish_caught,pred_caught)
+abline(1,1)
+```
+
