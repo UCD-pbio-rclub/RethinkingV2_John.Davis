@@ -80,8 +80,42 @@ dag <- dagitty( "dag {
                 }")
 coordinates(dag) <- list(x = c(A=0,R=0.5,E=1), y = c(A=0,R=-0.5,E=0))
 plot(dag)
+
+data("Trolley")
+d <- Trolley
+
+edu_levels <- c( 6 , 1 , 8 , 4 , 7 , 2 , 5 , 3 )
+d$edu_new <- as.integer(edu_levels[ d$edu ])
+
+dat <- list(
+  R = d$response ,
+  action = d$action,
+  intention = d$intention,
+  contact = d$contact,
+  E = d$edu_new,
+  alpha = rep(2 , 7),
+  age = standardize(d$age)
+)
+
+mdl_1 <- ulam(
+  alist(
+    R ~ ordered_logistic(phi , kappa),
+    phi <- bE * sum(delta_j[1:E]) + bA * action + bI * intention + bC * contact + bAge * age,
+    kappa ~ normal(0 , 1.5),
+    c(bA, bI, bC, bE, bAge) ~ normal(0 , 1),
+    vector[8]:delta_j <<- append_row(0 , delta),
+    simplex[7]:delta ~ dirichlet(alpha)
+  ),
+  data = dat ,
+  chains = 4 ,
+  cores = 4 ,
+  coerce_int = FALSE
+)
+
+precis(mdl_1, depth = 2)
 ```
 
+Education now leads to a more permissable result while age leads to less permissable. Back door may be real
 
 ## 2. Consider one more variable in the Trolley data: Gender. Suppose that gender might influence education as well as response directly. Draw a DAG now that includes response, education, age, and gender.
 ## Using only the DAG, is it possible that the inferences from Problem 1 are confounded by gender? If so, define any additional models you need to infer the causal influence of education on response. What do you conclude?
@@ -97,5 +131,34 @@ dag <- dagitty( "dag {
                 }")
 coordinates(dag) <- list(x = c(A=0,R=0.5,E=0.5,G=1), y = c(A=0,R=-0.5,E=0,G=0))
 plot(dag)
+
+dat <- list(
+  R = d$response ,
+  action = d$action,
+  intention = d$intention,
+  contact = d$contact,
+  E = d$edu_new,
+  alpha = rep(2 , 7),
+  age = standardize(d$age),
+  male = d$male
+)
+
+mdl_2 <- ulam(
+  alist(
+    R ~ ordered_logistic(phi , kappa),
+    phi <- bE * sum(delta_j[1:E]) + bA * action + bI * intention + bC * contact + bAge * age + bM * male,
+    kappa ~ normal(0 , 1.5),
+    c(bA, bI, bC, bE, bAge, bM) ~ normal(0 , 1),
+    vector[8]:delta_j <<- append_row(0 , delta),
+    simplex[7]:delta ~ dirichlet(alpha)
+  ),
+  data = dat ,
+  chains = 4 ,
+  cores = 4 ,
+  coerce_int = FALSE
+)
+
+precis(mdl_2, depth = 2)
 ```
 
+Education does not play a role anymore. Now both gender and age play the major role with the elderly and females providing less permissable answers.
