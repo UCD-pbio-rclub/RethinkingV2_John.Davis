@@ -473,6 +473,62 @@ dag &lt;- dagitty( &quot;dag {
 coordinates(dag) &lt;- list(x = c(A=0,R=0.5,E=1), y = c(A=0,R=-0.5,E=0))
 plot(dag)</code></pre>
 <p><img src="data:image/png;base64,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" /><!-- --></p>
+<pre class="r"><code>data(&quot;Trolley&quot;)
+d &lt;- Trolley
+
+edu_levels &lt;- c( 6 , 1 , 8 , 4 , 7 , 2 , 5 , 3 )
+d$edu_new &lt;- as.integer(edu_levels[ d$edu ])
+
+dat &lt;- list(
+  R = d$response ,
+  action = d$action,
+  intention = d$intention,
+  contact = d$contact,
+  E = d$edu_new,
+  alpha = rep(2 , 7),
+  age = standardize(d$age)
+)
+
+mdl_1 &lt;- ulam(
+  alist(
+    R ~ ordered_logistic(phi , kappa),
+    phi &lt;- bE * sum(delta_j[1:E]) + bA * action + bI * intention + bC * contact + bAge * age,
+    kappa ~ normal(0 , 1.5),
+    c(bA, bI, bC, bE, bAge) ~ normal(0 , 1),
+    vector[8]:delta_j &lt;&lt;- append_row(0 , delta),
+    simplex[7]:delta ~ dirichlet(alpha)
+  ),
+  data = dat ,
+  chains = 4 ,
+  cores = 4 ,
+  coerce_int = FALSE
+)</code></pre>
+<pre><code>## Cautionary note:</code></pre>
+<pre><code>## Variable alpha contains only integers but is not type &#39;integer&#39;. If you intend it as an index variable, you should as.integer() it before passing to ulam.</code></pre>
+<pre><code>## Warning: Tail Effective Samples Size (ESS) is too low, indicating posterior variances and tail quantiles may be unreliable.
+## Running the chains for more iterations may help. See
+## http://mc-stan.org/misc/warnings.html#tail-ess</code></pre>
+<pre class="r"><code>precis(mdl_1, depth = 2)</code></pre>
+<pre><code>##                 mean         sd        5.5%       94.5%     n_eff      Rhat
+## kappa[1] -2.68225843 0.09041803 -2.81943792 -2.55684348  421.8306 1.0105868
+## kappa[2] -1.99848285 0.08930953 -2.13835249 -1.87152107  423.4777 1.0101657
+## kappa[3] -1.41490115 0.08817978 -1.55679497 -1.29308429  410.3575 1.0099566
+## kappa[4] -0.38968380 0.08728123 -0.53304872 -0.26956594  424.6103 1.0091071
+## kappa[5]  0.28093526 0.08839857  0.13306009  0.40721504  426.9948 1.0086417
+## kappa[6]  1.18790915 0.08981233  1.04669995  1.30988686  435.3900 1.0092001
+## bAge     -0.09952180 0.02092812 -0.13187901 -0.06402782  820.4219 1.0008079
+## bE        0.23426780 0.11236358  0.04119232  0.37343963  352.6772 1.0126577
+## bC       -0.96201099 0.05032569 -1.04457248 -0.87931726 1952.5271 0.9990961
+## bI       -0.71847738 0.03676286 -0.77771681 -0.65928823 2087.7558 0.9990569
+## bA       -0.70769278 0.04043902 -0.77274620 -0.64538959 1794.3647 1.0007983
+## delta[1]  0.11201984 0.07222268  0.02305187  0.24580801 1865.2806 0.9998936
+## delta[2]  0.12432261 0.07716441  0.02706976  0.26538520 2392.7936 0.9994299
+## delta[3]  0.08370352 0.06042357  0.01586069  0.19193279 1302.3594 1.0007485
+## delta[4]  0.06545298 0.05423172  0.01077573  0.15946353  727.0256 1.0049156
+## delta[5]  0.43496782 0.14139757  0.14994689  0.62758991  483.1885 1.0056206
+## delta[6]  0.08473431 0.05897463  0.01619753  0.19467090 1994.6000 1.0002539
+## delta[7]  0.09479893 0.06250794  0.02002280  0.21137847 1974.3931 0.9990382</code></pre>
+<p>Education now leads to a more permissable result while age leads to less permissable. Back door may be real</p>
 </div>
 <div id="consider-one-more-variable-in-the-trolley-data-gender.-suppose-that-gender-might-influence-education-as-well-as-response-directly.-draw-a-dag-now-that-includes-response-education-age-and-gender." class="section level2">
 <h2>2. Consider one more variable in the Trolley data: Gender. Suppose that gender might influence education as well as response directly. Draw a DAG now that includes response, education, age, and gender.</h2>
@@ -490,6 +546,55 @@ dag &lt;- dagitty( &quot;dag {
 coordinates(dag) &lt;- list(x = c(A=0,R=0.5,E=0.5,G=1), y = c(A=0,R=-0.5,E=0,G=0))
 plot(dag)</code></pre>
 <p><img src="data:image/png;base64,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" /><!-- --></p>
+<pre class="r"><code>dat &lt;- list(
+  R = d$response ,
+  action = d$action,
+  intention = d$intention,
+  contact = d$contact,
+  E = d$edu_new,
+  alpha = rep(2 , 7),
+  age = standardize(d$age),
+  male = d$male
+)
+
+mdl_2 &lt;- ulam(
+  alist(
+    R ~ ordered_logistic(phi , kappa),
+    phi &lt;- bE * sum(delta_j[1:E]) + bA * action + bI * intention + bC * contact + bAge * age + bM * male,
+    kappa ~ normal(0 , 1.5),
+    c(bA, bI, bC, bE, bAge, bM) ~ normal(0 , 1),
+    vector[8]:delta_j &lt;&lt;- append_row(0 , delta),
+    simplex[7]:delta ~ dirichlet(alpha)
+  ),
+  data = dat ,
+  chains = 4 ,
+  cores = 4 ,
+  coerce_int = FALSE
+)</code></pre>
+<pre><code>## Cautionary note:</code></pre>
+<pre><code>## Variable alpha contains only integers but is not type &#39;integer&#39;. If you intend it as an index variable, you should as.integer() it before passing to ulam.</code></pre>
+<pre class="r"><code>precis(mdl_2, depth = 2)</code></pre>
+<pre><code>##                  mean         sd        5.5%       94.5%     n_eff      Rhat
+## kappa[1] -2.561624060 0.12861260 -2.77455165 -2.37653671  586.9237 1.0069311
+## kappa[2] -1.877648035 0.12717527 -2.09843184 -1.69256815  585.4414 1.0071061
+## kappa[3] -1.288749940 0.12570918 -1.50174237 -1.10454302  586.7819 1.0067597
+## kappa[4] -0.244737263 0.12565631 -0.45672628 -0.06465188  595.7729 1.0070216
+## kappa[5]  0.442254707 0.12665685  0.22456983  0.62830208  602.8862 1.0063087
+## kappa[6]  1.368508979 0.12769785  1.15432979  1.55549490  606.7065 1.0054374
+## bM        0.561497048 0.03638516  0.50280040  0.61871974 2032.4344 1.0000865
+## bAge     -0.067339349 0.02297466 -0.10532306 -0.03118734  950.0876 1.0042097
+## bE        0.007963889 0.17022064 -0.27111324  0.25905366  566.2467 1.0073292
+## bC       -0.969531535 0.04952390 -1.04928807 -0.89114670 2060.5695 0.9986562
+## bI       -0.725635357 0.03646531 -0.78168872 -0.66718825 2370.2918 1.0002902
+## bA       -0.713357869 0.04006332 -0.77775487 -0.64875237 2093.2308 0.9989044
+## delta[1]  0.154368301 0.09575102  0.03506410  0.32875152 1851.6602 0.9995063
+## delta[2]  0.139868170 0.08944811  0.02632024  0.30614963 2201.8409 0.9999062
+## delta[3]  0.133540218 0.08529814  0.02517419  0.29032353 1804.9263 1.0007368
+## delta[4]  0.136086488 0.09665984  0.02164412  0.31843574 1119.5900 1.0034164
+## delta[5]  0.188667135 0.15225132  0.01813843  0.46135807  593.4158 1.0074386
+## delta[6]  0.117034618 0.07788690  0.02285866  0.26037884 2184.2447 1.0009512
+## delta[7]  0.130435069 0.08257321  0.03011805  0.28409777 2499.0806 0.9987333</code></pre>
+<p>Education does not play a role anymore. Now both gender and age play the major role with the elderly and females providing less permissable answers.</p>
 </div>
 </div>
 
