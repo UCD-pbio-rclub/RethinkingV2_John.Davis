@@ -186,7 +186,7 @@ dat3 <- list(
   S = d$surv,
   N = d$density,
   tank = d$tank,
-  sze = ifelse(d$pred == "small", 0L, 1L)
+  sze = ifelse(d$size == "small", 0L, 1L)
 )
 
 m12.1b <- ulam(
@@ -210,7 +210,7 @@ dat4 <- list(
   N = d$density,
   tank = d$tank,
   pred = ifelse(d$pred == "no", 0L, 1L),
-  sze = ifelse(d$pred == "small", 0L, 1L)
+  sze = ifelse(d$size == "small", 0L, 1L)
 )
 
 
