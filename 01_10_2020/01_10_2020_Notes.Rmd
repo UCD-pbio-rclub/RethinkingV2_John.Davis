@@ -14,9 +14,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 library(rethinking)
-# options(mc.cores = parallel::detectCores())
-# rstan_options(auto_write = TRUE)
-# Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
 ```
 
 # 13 Models With Memory
@@ -133,7 +130,7 @@ dens(inv_logit(sim_tanks) , lwd = 2 , adj = 0.1)
 ### 13.2.2. Assign values to the parameters
 
 ```{r}
-a_bar <- 1.4
+a_bar <- 1.5
 sigma <- 1.5
 nponds <- 60
 Ni <- as.integer( rep( c(5,10,25,35) , each=15 ) )

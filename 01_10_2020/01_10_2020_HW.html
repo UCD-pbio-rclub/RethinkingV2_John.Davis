@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
 
 <head>
 
 <meta charset="utf-8" />
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="pandoc" />
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
@@ -331,6 +330,7 @@ summary {
   border: none;
   display: inline-block;
   border-radius: 4px;
+  background-color: transparent;
 }
 
 .tabset-dropdown > .nav-tabs.nav-tabs-open > li {
@@ -370,12 +370,12 @@ summary {
 
 
 <pre class="r"><code>library(tidyverse)</code></pre>
-<pre><code>## -- Attaching packages ------------------------------------------ tidyverse 1.2.1 --</code></pre>
-<pre><code>## &lt;U+2713&gt; ggplot2 3.2.1     &lt;U+2713&gt; purrr   0.3.3
-## &lt;U+2713&gt; tibble  2.1.3     &lt;U+2713&gt; dplyr   0.8.3
-## &lt;U+2713&gt; tidyr   1.0.0     &lt;U+2713&gt; stringr 1.4.0
-## &lt;U+2713&gt; readr   1.3.1     &lt;U+2713&gt; forcats 0.4.0</code></pre>
-<pre><code>## -- Conflicts --------------------------------------------- tidyverse_conflicts() --
+<pre><code>## -- Attaching packages -------------------------------------------------------- tidyverse 1.3.0 --</code></pre>
+<pre><code>## v ggplot2 3.2.1     v purrr   0.3.3
+## v tibble  2.1.3     v dplyr   0.8.3
+## v tidyr   1.0.0     v stringr 1.4.0
+## v readr   1.3.1     v forcats 0.4.0</code></pre>
+<pre><code>## -- Conflicts ----------------------------------------------------------- tidyverse_conflicts() --
 ## x dplyr::filter() masks stats::filter()
 ## x dplyr::lag()    masks stats::lag()</code></pre>
 <pre class="r"><code>library(rethinking)</code></pre>
@@ -405,25 +405,793 @@ summary {
 <pre><code>## The following object is masked from &#39;package:stats&#39;:
 ## 
 ##     rstudent</code></pre>
-<pre class="r"><code>options(mc.cores = parallel::detectCores())
-rstan_options(auto_write = TRUE)
-Sys.setenv(LOCAL_CPPFLAGS = &#39;-march=native&#39;)</code></pre>
 <div id="easy" class="section level1">
 <h1>Easy</h1>
 <div id="e1.-which-of-the-following-priors-will-produce-more-shrinkage-in-the-estimates" class="section level3">
 <h3>12E1. Which of the following priors will produce more shrinkage in the estimates?</h3>
 <p><strong>(a)</strong> <span class="math display">\[\alpha_{tank} \sim Normal(0, 1) \]</span></p>
-<p><strong>(b)</strong> <span class="math display">\[\alpha_{tank} \sim Normal(0, 2) \]</span></p>
+<ol start="2" style="list-style-type: lower-alpha">
+<li><span class="math display">\[\alpha_{tank} \sim Normal(0, 2) \]</span></li>
+</ol>
+<pre class="r"><code>data(reedfrogs)
+d &lt;- reedfrogs
+d$tank &lt;- 1:nrow(d)
+
+dat &lt;- list(S = d$surv,
+            N = d$density,
+            tank = d$tank)
+
+E12a &lt;- ulam(
+  alist(S ~ dbinom(N , p) ,
+        logit(p) &lt;- a[tank] ,
+        a[tank] ~ dnorm(0 , 1)),
+  data = dat ,
+  chains = 1 ,
+  cores = 4 ,
+  log_lik = TRUE
+)</code></pre>
+<pre><code>## 
+## SAMPLING FOR MODEL &#39;d66992d00dd5d3bbde9a4fddb67e4ca5&#39; NOW (CHAIN 1).
+## Chain 1: 
+## Chain 1: Gradient evaluation took 0 seconds
+## Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0 seconds.
+## Chain 1: Adjust your expectations accordingly!
+## Chain 1: 
+## Chain 1: 
+## Chain 1: Iteration:   1 / 1000 [  0%]  (Warmup)
+## Chain 1: Iteration: 100 / 1000 [ 10%]  (Warmup)
+## Chain 1: Iteration: 200 / 1000 [ 20%]  (Warmup)
+## Chain 1: Iteration: 300 / 1000 [ 30%]  (Warmup)
+## Chain 1: Iteration: 400 / 1000 [ 40%]  (Warmup)
+## Chain 1: Iteration: 500 / 1000 [ 50%]  (Warmup)
+## Chain 1: Iteration: 501 / 1000 [ 50%]  (Sampling)
+## Chain 1: Iteration: 600 / 1000 [ 60%]  (Sampling)
+## Chain 1: Iteration: 700 / 1000 [ 70%]  (Sampling)
+## Chain 1: Iteration: 800 / 1000 [ 80%]  (Sampling)
+## Chain 1: Iteration: 900 / 1000 [ 90%]  (Sampling)
+## Chain 1: Iteration: 1000 / 1000 [100%]  (Sampling)
+## Chain 1: 
+## Chain 1:  Elapsed Time: 0.111 seconds (Warm-up)
+## Chain 1:                0.1 seconds (Sampling)
+## Chain 1:                0.211 seconds (Total)
+## Chain 1:</code></pre>
+<pre class="r"><code>E12b &lt;- ulam(
+  alist(S ~ dbinom(N , p) ,
+        logit(p) &lt;- a[tank] ,
+        a[tank] ~ dnorm(0 , 2)),
+  data = dat ,
+  chains = 1 ,
+  cores = 4 ,
+  log_lik = TRUE
+)</code></pre>
+<pre><code>## 
+## SAMPLING FOR MODEL &#39;c41b4f757ac0c5f8e85e2fe6a6bf204a&#39; NOW (CHAIN 1).
+## Chain 1: 
+## Chain 1: Gradient evaluation took 0 seconds
+## Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0 seconds.
+## Chain 1: Adjust your expectations accordingly!
+## Chain 1: 
+## Chain 1: 
+## Chain 1: Iteration:   1 / 1000 [  0%]  (Warmup)
+## Chain 1: Iteration: 100 / 1000 [ 10%]  (Warmup)
+## Chain 1: Iteration: 200 / 1000 [ 20%]  (Warmup)
+## Chain 1: Iteration: 300 / 1000 [ 30%]  (Warmup)
+## Chain 1: Iteration: 400 / 1000 [ 40%]  (Warmup)
+## Chain 1: Iteration: 500 / 1000 [ 50%]  (Warmup)
+## Chain 1: Iteration: 501 / 1000 [ 50%]  (Sampling)
+## Chain 1: Iteration: 600 / 1000 [ 60%]  (Sampling)
+## Chain 1: Iteration: 700 / 1000 [ 70%]  (Sampling)
+## Chain 1: Iteration: 800 / 1000 [ 80%]  (Sampling)
+## Chain 1: Iteration: 900 / 1000 [ 90%]  (Sampling)
+## Chain 1: Iteration: 1000 / 1000 [100%]  (Sampling)
+## Chain 1: 
+## Chain 1:  Elapsed Time: 0.12 seconds (Warm-up)
+## Chain 1:                0.1 seconds (Sampling)
+## Chain 1:                0.22 seconds (Total)
+## Chain 1:</code></pre>
+<pre class="r"><code># extract Stan samples
+posta &lt;- extract.samples(E12a)
+postb &lt;- extract.samples(E12b)
+
+# compute median intercept for each tank
+# also transform to probability with logistic
+d$propsurv.A.est &lt;- logistic(apply(posta$a , 2 , mean))
+d$propsurv.B.est &lt;- logistic(apply(postb$a , 2 , mean))
+
+# display raw proportions surviving in each tank
+plot(
+  d$propsurv ,
+  ylim = c(0, 1) ,
+  pch = 16 ,
+  xaxt = &quot;n&quot; ,
+  xlab = &quot;tank&quot; ,
+  ylab = &quot;proportion survival&quot; ,
+  col = rangi2
+)
+axis( 1 , at=c(1,16,32,48) , labels=c(1,16,32,48) )
+
+# overlay posterior means
+points( d$propsurv.A.est, col = &quot;black&quot; )
+points( d$propsurv.B.est, col = &quot;red&quot; )
+
+
+# mark posterior mean probability across tanks
+abline( h=mean(inv_logit(posta$a)) , lty=2, col = &quot;black&quot; )
+abline( h=mean(inv_logit(postb$a)) , lty=2, col = &quot;red&quot; )
+
+# draw vertical dividers between tank densities
+abline( v=16.5 , lwd=0.5 )
+abline( v=32.5 , lwd=0.5 )
+text( 8 , 0 , &quot;small tanks&quot; )
+text( 16+8 , 0 , &quot;medium tanks&quot; )
+text( 32+8 , 0 , &quot;large tanks&quot; )</code></pre>
+<p><img src="data:image/png;base64,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" /><!-- --></p>
+<pre class="r"><code>mean(d$propsurv.A.est - mean(inv_logit(posta$a)))</code></pre>
+<pre><code>## [1] 0.006684432</code></pre>
+<pre class="r"><code>mean(d$propsurv.B.est - mean(inv_logit(postb$a)))</code></pre>
+<pre><code>## [1] 0.01014298</code></pre>
 </div>
 <div id="e2.-make-the-following-model-into-a-multilevel-model." class="section level3">
 <h3>12E2. Make the following model into a multilevel model.</h3>
-<p>yi ∼ Binomial(1, pi) logit(pi) = αgroup[i] + βxi αgroup ∼ Normal(0, 10) β ∼ Normal(0, 1)</p>
+<p><span class="math display">\[
+y_i \sim Binomial(1, p_i) \\
+logit(p_i) = \alpha_{group[i]} + \beta x_i \\
+\alpha_{group} \sim Normal(0, 10) \\
+\beta \sim Normal(0, 1)
+\]</span></p>
+<p><span class="math display">\[
+y_i \sim Binomial(1, p_i) \\
+logit(p_i) = \alpha_{group[i]} + \beta x_i \\
+\alpha_{group} \sim Normal(\bar\alpha, \sigma) \\
+\bar\alpha \sim Normal(0, 10) \\
+\sigma \sim Exponential(1) \\
+\beta \sim Normal(0, 1)
+\]</span></p>
 </div>
 <div id="e3.-make-the-following-model-into-a-multilevel-model." class="section level3">
 <h3>12E3. Make the following model into a multilevel model.</h3>
-<p>yi ∼ Normal(µi , σ) µi = αgroup[i] + βxi αgroup ∼ Normal(0, 10) β ∼ Normal(0, 1) σ ∼ HalfCauchy(0, 2)</p>
-<p>12M1. Revisit the Reed frog survival data, data(reedfrogs), and add the predation and size treatment variables to the varying intercepts model. Consider models with either main effect alone, both main effects, as well as a model including both and their interaction. Instead of focusing on inferences about these two predictor variables, focus on the inferred variation across tanks. Explain why it changes as it does across models. 12M2. Compare the models you fit just above, using WAIC. Can you reconcile the differences in WAIC with the posterior distributions of the models?</p>
-<p>12H1. In 1980, a typical Bengali woman could have 5 or more children in her lifetime. By the year 200, a typical Bengali woman had only 2 or 3. You’re going to look at a historical set of data, when contraception was widely available but many families chose not to use it. These data reside in data(bangladesh) and come from the 1988 Bangladesh Fertility Survey. Each row is one of 1934 women. There are six variables, but you can focus on three of them for this practice problem: (1) district: ID number of administrative district each woman resided in (2) use.contraception: An indicator (0/1) of whether the woman was using contraception (3) urban: An indicator (0/1) of whether the woman lived in a city, as opposed to living in a rural area The first thing to do is ensure that the cluster variable, district, is a contiguous set of integers. Recall that these values will be index values inside the model. If there are gaps, you’ll have parameters for which there is no data to inform them. Worse, the model probably won’t run. Look at the unique values of the district variable: R code 13.40 sort(unique(d<span class="math inline">\(district)) [1] 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 [26] 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 [51] 51 52 53 55 56 57 58 59 60 61 District 54 is absent. So district isn’t yet a good index variable, because it’s not contiguous. This is easy to fix. Just make a new variable that is contiguous. This is enough to do it: R code 13.41 d\)</span>district_id &lt;- as.integer(as.factor(d<span class="math inline">\(district)) sort(unique(d\)</span>district_id)) [1] 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 [26] 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 [51] 51 52 53 54 55 56 57 58 59 60 Now there are 60 values, contiguous integers 1 to 60. Now, focus on predicting use.contraception, clustered by district_id. Do not include urban just yet. Fit both (1) a traditional fixed-effects model that uses dummy variables for district and (2) a multilevel model with varying intercepts for district. Plot the predicted proportions of women in each district using contraception, for both the fixed-effects model and the varying-effects model. That is, make a plot in which district ID is on the horizontal axis and expected proportion using contraception is on the vertical. Make one plot for each model, or layer them on the same plot, as you prefer. How do the models disagree? Can you explain the pattern of disagreement? In particular, can you explain the most extreme cases of disagreement, both why they happen where they do and why the models reach different inferences?</p>
+<p><span class="math display">\[
+y_i \sim Normal(\mu_i, \sigma) \\
+\mu_i = \alpha_{group[i]} + \beta x_i \\
+\alpha_{group} \sim Normal(0, 10) \\
+\beta \sim Normal(0, 1) \\
+\sigma \sim HalfCauchy(0, 2)
+\]</span></p>
+<p><span class="math display">\[
+y_i \sim Normal(\mu_i, \sigma) \\
+\mu_i = \alpha_{group[i]} + \beta x_i \\
+\alpha_{group} \sim Normal(\bar\alpha, \sigma_\alpha) \\
+\bar\alpha \sim Normal(0, 10) \\
+\sigma_\alpha \sim Exponential(1) \\
+\beta \sim Normal(0, 1) \\
+\sigma \sim HalfCauchy(0, 2)
+\]</span></p>
+</div>
+<div id="m1.-revisit-the-reed-frog-survival-data-datareedfrogs-and-add-the-predation-and-size-treatment-variables-to-the-varying-intercepts-model.-consider-models-with-either-main-effect-alone-both-main-effects-as-well-as-a-model-including-both-and-their-interaction.-instead-of-focusing-on-inferences-about-these-two-predictor-variables-focus-on-the-inferred-variation-across-tanks.-explain-why-it-changes-as-it-does-across-models." class="section level3">
+<h3>12M1. Revisit the Reed frog survival data, data(reedfrogs), and add the predation and size treatment variables to the varying intercepts model. Consider models with either main effect alone, both main effects, as well as a model including both and their interaction. Instead of focusing on inferences about these two predictor variables, focus on the inferred variation across tanks. Explain why it changes as it does across models.</h3>
+<pre class="r"><code>d &lt;- reedfrogs
+d$tank &lt;- 1:nrow(d)
+
+dat &lt;- list(S = d$surv,
+            N = d$density,
+            tank = d$tank)
+
+m12.1 &lt;- ulam(
+  alist(
+    S ~ dbinom(N , p),
+    logit(p) &lt;- a[tank],
+    a[tank] ~ dnorm(a_bar , sigma),
+    a_bar ~ dnorm(0 , 1.5),
+    sigma ~ dexp(1)
+  ),
+  data = dat ,
+  chains = 4,
+  cores = 3,
+  log_lik = TRUE,
+  iter = 2500
+)
+
+
+dat2 &lt;- list(
+  S = d$surv,
+  N = d$density,
+  tank = d$tank,
+  pred = ifelse(d$pred == &quot;no&quot;, 0L, 1L)
+)
+
+m12.1a &lt;- ulam(
+  alist(
+    S ~ dbinom(N , p) ,
+    logit(p) &lt;- a[tank] + bP * pred ,
+    a[tank] ~ dnorm(a_bar , sigma) ,
+    bP ~ dnorm(0 , 1), 
+    a_bar ~ dnorm(0 , 1.5) ,
+    sigma ~ dexp(1)
+  ),
+  data = dat2 ,
+  chains = 4 ,
+  cores = 3,
+  log_lik = TRUE,
+  iter = 2500
+)
+
+dat3 &lt;- list(
+  S = d$surv,
+  N = d$density,
+  tank = d$tank,
+  sze = ifelse(d$pred == &quot;small&quot;, 0L, 1L)
+)
+
+m12.1b &lt;- ulam(
+  alist(
+    S ~ dbinom(N , p) ,
+    logit(p) &lt;- a[tank] + bS * sze,
+    a[tank] ~ dnorm(a_bar , sigma) ,
+    a_bar ~ dnorm(0 , 1.5) ,
+    bS ~ dnorm(0 , 1),
+    sigma ~ dexp(1)
+  ),
+  data = dat3 ,
+  chains = 4 ,
+  cores = 3,
+  log_lik = TRUE,
+  iter = 2500
+)</code></pre>
+<pre><code>## Warning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
+## Running the chains for more iterations may help. See
+## http://mc-stan.org/misc/warnings.html#bulk-ess</code></pre>
+<pre><code>## Warning: Tail Effective Samples Size (ESS) is too low, indicating posterior variances and tail quantiles may be unreliable.
+## Running the chains for more iterations may help. See
+## http://mc-stan.org/misc/warnings.html#tail-ess</code></pre>
+<pre class="r"><code>dat4 &lt;- list(
+  S = d$surv,
+  N = d$density,
+  tank = d$tank,
+  pred = ifelse(d$pred == &quot;no&quot;, 0L, 1L),
+  sze = ifelse(d$pred == &quot;small&quot;, 0L, 1L)
+)
+
+
+m12.1c &lt;- ulam(
+  alist(
+    S ~ dbinom(N , p) ,
+    logit(p) &lt;- a[tank] + bP * pred + bS * sze,
+    a[tank] ~ dnorm(a_bar , sigma) ,
+    a_bar ~ dnorm(0 , 1.5) ,
+    c(bS,bP) ~ dnorm(0 , 1),
+    sigma ~ dexp(1)
+  ),
+  data = dat4 ,
+  chains = 4 ,
+  cores = 3,
+  log_lik = TRUE,
+  iter = 2500
+)</code></pre>
+<pre><code>## Warning: The largest R-hat is 1.05, indicating chains have not mixed.
+## Running the chains for more iterations may help. See
+## http://mc-stan.org/misc/warnings.html#r-hat</code></pre>
+<pre><code>## Warning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
+## Running the chains for more iterations may help. See
+## http://mc-stan.org/misc/warnings.html#bulk-ess</code></pre>
+<pre><code>## Warning: Tail Effective Samples Size (ESS) is too low, indicating posterior variances and tail quantiles may be unreliable.
+## Running the chains for more iterations may help. See
+## http://mc-stan.org/misc/warnings.html#tail-ess</code></pre>
+<pre class="r"><code>m12.1d &lt;- ulam(
+  alist(
+    S ~ dbinom(N , p) ,
+    logit(p) &lt;- a[tank] + bP * pred + bS * sze + bPS * sze * pred,
+    a[tank] ~ dnorm(a_bar , sigma) ,
+    a_bar ~ dnorm(0 , 1.5) ,
+    c(bS,bP,bPS) ~ dnorm(0 , 1),
+    sigma ~ dexp(1)
+  ),
+  data = dat4 ,
+  chains = 4 ,
+  cores = 3,
+  log_lik = TRUE,
+  iter = 2500
+)</code></pre>
+<pre><code>## Warning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
+## Running the chains for more iterations may help. See
+## http://mc-stan.org/misc/warnings.html#bulk-ess
+
+## Warning: Tail Effective Samples Size (ESS) is too low, indicating posterior variances and tail quantiles may be unreliable.
+## Running the chains for more iterations may help. See
+## http://mc-stan.org/misc/warnings.html#tail-ess</code></pre>
+<pre class="r"><code>compare(m12.1,m12.1a,m12.1b,m12.1c,m12.1d)</code></pre>
+<pre><code>##            WAIC       SE     dWAIC       dSE    pWAIC    weight
+## m12.1a 199.0610 8.913600 0.0000000        NA 19.27065 0.2579931
+## m12.1d 199.2201 9.143167 0.1591637 0.7174893 19.23378 0.2382573
+## m12.1c 199.2992 9.048731 0.2382425 0.6344876 19.34815 0.2290205
+## m12.1b 200.1847 7.258678 1.1237043 5.4501739 20.98563 0.1470953
+## m12.1  200.4685 7.198869 1.4075360 5.4554148 21.11055 0.1276338</code></pre>
+<pre class="r"><code>abc &lt;- coeftab(m12.1,m12.1a,m12.1b,m12.1c,m12.1d)
+
+abc@coefs %&gt;% tail(5)</code></pre>
+<pre><code>##       m12.1 m12.1a m12.1b m12.1c m12.1d
+## a_bar  1.35   2.49   0.95   1.80   1.84
+## sigma  1.62   0.83   1.62   0.83   0.82
+## bP       NA  -2.36     NA  -2.41  -1.27
+## bS       NA     NA   0.41   0.73   0.75
+## bPS      NA     NA     NA     NA  -1.24</code></pre>
+<p>The variation across tanks is reduced when predation is added to the model. The effect does not seem to occur when only size is considered though.</p>
+</div>
+<div id="m2.-compare-the-models-you-fit-just-above-using-waic.-can-you-reconcile-the-differences-in-waic-with-the-posterior-distributions-of-the-models" class="section level3">
+<h3>12M2. Compare the models you fit just above, using WAIC. Can you reconcile the differences in WAIC with the posterior distributions of the models?</h3>
+<pre class="r"><code>compare(m12.1,m12.1a,m12.1b,m12.1c,m12.1d)</code></pre>
+<pre><code>##            WAIC       SE     dWAIC       dSE    pWAIC    weight
+## m12.1a 199.0610 8.913600 0.0000000        NA 19.27065 0.2579931
+## m12.1d 199.2201 9.143167 0.1591637 0.7174893 19.23378 0.2382573
+## m12.1c 199.2992 9.048731 0.2382425 0.6344876 19.34815 0.2290205
+## m12.1b 200.1847 7.258678 1.1237043 5.4501739 20.98563 0.1470953
+## m12.1  200.4685 7.198869 1.4075360 5.4554148 21.11055 0.1276338</code></pre>
+<p>They all look pretty equal despite the models containing predation having a lower tank to tank variance.</p>
+</div>
+<div id="h1.-in-1980-a-typical-bengali-woman-could-have-5-or-more-children-in-her-lifetime.-by-the-year-200-a-typical-bengali-woman-had-only-2-or-3.-youre-going-to-look-at-a-historical-set-of-data-when-contraception-was-widely-available-but-many-families-chose-not-to-use-it.-these-data-reside-in-databangladesh-and-come-from-the-1988-bangladesh-fertility-survey.-each-row-is-one-of-1934-women.-there-are-six-variables-but-you-can-focus-on-three-of-them-for-this-practice-problem" class="section level3">
+<h3>12H1. In 1980, a typical Bengali woman could have 5 or more children in her lifetime. By the year 200, a typical Bengali woman had only 2 or 3. You’re going to look at a historical set of data, when contraception was widely available but many families chose not to use it. These data reside in data(bangladesh) and come from the 1988 Bangladesh Fertility Survey. Each row is one of 1934 women. There are six variables, but you can focus on three of them for this practice problem:</h3>
+<ol style="list-style-type: decimal">
+<li>district: ID number of administrative district each woman resided in</li>
+<li>use.contraception: An indicator (0/1) of whether the woman was using contraception</li>
+<li>urban: An indicator (0/1) of whether the woman lived in a city, as opposed to living in a rural area</li>
+</ol>
+</div>
+<div id="the-first-thing-to-do-is-ensure-that-the-cluster-variable-district-is-a-contiguous-set-of-integers.-recall-that-these-values-will-be-index-values-inside-the-model.-if-there-are-gaps-youll-have-parameters-for-which-there-is-no-data-to-inform-them.-worse-the-model-probably-wont-run.-look-at-the-unique-values-of-the-district-variable" class="section level3">
+<h3>The first thing to do is ensure that the cluster variable, district, is a contiguous set of integers. Recall that these values will be index values inside the model. If there are gaps, you’ll have parameters for which there is no data to inform them. Worse, the model probably won’t run. Look at the unique values of the district variable:</h3>
+<pre class="r"><code>data(bangladesh)
+d &lt;- bangladesh
+sort(unique(d$district))</code></pre>
+<pre><code>##  [1]  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
+## [26] 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50
+## [51] 51 52 53 55 56 57 58 59 60 61</code></pre>
+</div>
+<div id="district-54-is-absent.-so-district-isnt-yet-a-good-index-variable-because-its-not-contiguous.-this-is-easy-to-fix.-just-make-a-new-variable-that-is-contiguous.-this-is-enough-to-do-it" class="section level3">
+<h3>District 54 is absent. So district isn’t yet a good index variable, because it’s not contiguous. This is easy to fix. Just make a new variable that is contiguous. This is enough to do it:</h3>
+<pre class="r"><code>d$district_id &lt;- as.integer(as.factor(d$district))
+sort(unique(d$district_id))</code></pre>
+<pre><code>##  [1]  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
+## [26] 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50
+## [51] 51 52 53 54 55 56 57 58 59 60</code></pre>
+</div>
+<div id="now-there-are-60-values-contiguous-integers-1-to-60." class="section level3">
+<h3>Now there are 60 values, contiguous integers 1 to 60.</h3>
+</div>
+<div id="now-focus-on-predicting-use.contraception-clustered-by-district_id.-do-not-include-urban-just-yet.-fit-both-1-a-traditional-fixed-effects-model-that-uses-dummy-variables-for-district-and-2-a-multilevel-model-with-varying-intercepts-for-district.-plot-the-predicted-proportions-of-women-in-each-district-using-contraception-for-both-the-fixed-effects-model-and-the-varying-effects-model.-that-is-make-a-plot-in-which-district-id-is-on-the-horizontal-axis-and-expected-proportion-using-contraception-is-on-the-vertical.-make-one-plot-for-each-model-or-layer-them-on-the-same-plot-as-you-prefer.-how-do-the-models-disagree-can-you-explain-the-pattern-of-disagreement-in-particular-can-you-explain-the-most-extreme-cases-of-disagreement-both-why-they-happen-where-they-do-and-why-the-models-reach-different-inferences" class="section level3">
+<h3>Now, focus on predicting use.contraception, clustered by district_id. Do not include urban just yet. Fit both (1) a traditional fixed-effects model that uses dummy variables for district and (2) a multilevel model with varying intercepts for district. Plot the predicted proportions of women in each district using contraception, for both the fixed-effects model and the varying-effects model. That is, make a plot in which district ID is on the horizontal axis and expected proportion using contraception is on the vertical. Make one plot for each model, or layer them on the same plot, as you prefer. How do the models disagree? Can you explain the pattern of disagreement? In particular, can you explain the most extreme cases of disagreement, both why they happen where they do and why the models reach different inferences?</h3>
+<pre class="r"><code>head(d)</code></pre>
+<pre><code>##   woman district use.contraception living.children age.centered urban
+## 1     1        1                 0               4      18.4400     1
+## 2     2        1                 0               1      -5.5599     1
+## 3     3        1                 0               3       1.4400     1
+## 4     4        1                 0               4       8.4400     1
+## 5     5        1                 0               1     -13.5590     1
+## 6     6        1                 0               1     -11.5600     1
+##   district_id
+## 1           1
+## 2           1
+## 3           1
+## 4           1
+## 5           1
+## 6           1</code></pre>
+<pre class="r"><code>dat &lt;- list(
+  did = d$district_id,
+  concep = d$use.contraception
+)
+
+h12.1a &lt;- ulam(
+  alist(
+    concep ~ dbinom(1, p),
+    logit(p) &lt;- a[did],
+    a[did] ~ dnorm(0, 1.5)
+  ), data = dat, cores = 3, chains = 4, iter = 2500, log_lik = TRUE
+)
+
+h12.1b &lt;- ulam(
+  alist(
+    concep ~ dbinom(1, p),
+    logit(p) &lt;- a[did],
+    a[did] ~ dnorm(a_bar, sigma),
+    a_bar ~ dnorm(0, 1.5),
+    sigma ~ dexp(1)
+  ), data = dat, cores = 3, chains = 4, iter = 2500, log_lik = TRUE
+)
+
+precis(h12.1a, depth = 2)</code></pre>
+<pre><code>##               mean        sd       5.5%       94.5%     n_eff      Rhat
+## a[1]  -1.052695737 0.2056924 -1.3904254 -0.72524900 12316.254 0.9993685
+## a[2]  -0.592296741 0.4482476 -1.3164075  0.10753154  9526.670 0.9995515
+## a[3]   1.221709659 1.1036029 -0.4928327  2.99690600  9688.131 0.9994070
+## a[4]  -0.005985512 0.3511393 -0.5591264  0.55694189 10115.380 0.9994490
+## a[5]  -0.564765024 0.3276411 -1.0906264 -0.05148955 10194.324 0.9996025
+## a[6]  -0.873055339 0.2811945 -1.3390407 -0.43826067  9667.006 0.9996139
+## a[7]  -0.902405750 0.4967775 -1.7098597 -0.12394460 11078.860 0.9993741
+## a[8]  -0.484027201 0.3318501 -1.0355899  0.04877874 10579.891 0.9995130
+## a[9]  -0.784249462 0.4323036 -1.4841060 -0.11308138 12758.299 0.9997022
+## a[10] -1.955828779 0.7260469 -3.1804991 -0.87198453  9759.456 0.9996775
+## a[11] -2.985834057 0.8667584 -4.4973788 -1.72280869  8097.138 0.9996586
+## a[12] -0.620070111 0.3801827 -1.2270539 -0.01710360 10967.632 0.9994862
+## a[13] -0.324489793 0.3946879 -0.9486244  0.27809147 10374.808 0.9996553
+## a[14]  0.515829392 0.1898565  0.2155558  0.82618141 11210.122 0.9996391
+## a[15] -0.532198544 0.4472318 -1.2723956  0.15727842 10602.479 0.9995200
+## a[16]  0.195246605 0.4407426 -0.4949795  0.91177782  9362.014 0.9996501
+## a[17] -0.849549187 0.4400289 -1.5533443 -0.16092101 11779.425 0.9997383
+## a[18] -0.647335173 0.3102224 -1.1412306 -0.15532248  9576.552 0.9995027
+## a[19] -0.453228125 0.4007622 -1.0907775  0.17808117  9256.579 0.9997907
+## a[20] -0.387445019 0.5111408 -1.2100895  0.42354650 10774.922 0.9994629
+## a[21] -0.437074970 0.4713540 -1.1996194  0.31051533 10989.353 0.9996207
+## a[22] -1.291030876 0.5340050 -2.1650466 -0.48249112 10605.997 1.0001917
+## a[23] -0.933729639 0.5496211 -1.8236124 -0.09411341  9417.926 0.9998619
+## a[24] -2.025215203 0.7200188 -3.2250977 -0.95851492  9255.157 0.9998805
+## a[25] -0.207507518 0.2477002 -0.5999653  0.18388596  9669.440 0.9996311
+## a[26] -0.431755131 0.5651405 -1.3518310  0.46442097 10400.284 0.9998692
+## a[27] -1.451565421 0.3719454 -2.0657548 -0.89232858 10050.045 0.9996161
+## a[28] -1.100491997 0.3169393 -1.6242150 -0.61699845 10176.222 0.9993359
+## a[29] -0.909413022 0.3819947 -1.5288668 -0.32194858 11097.286 0.9996792
+## a[30] -0.029460293 0.2570070 -0.4475004  0.37492744 10299.717 0.9993409
+## a[31] -0.176713334 0.3402192 -0.7070145  0.35537427 11438.768 0.9995808
+## a[32] -1.258368986 0.4616476 -2.0010959 -0.56466217  9547.524 0.9993451
+## a[33] -0.266448648 0.5270952 -1.0881075  0.57965881 10581.566 0.9994531
+## a[34]  0.634109999 0.3490795  0.0882595  1.20385852  8681.935 0.9996166
+## a[35] -0.003788724 0.2871899 -0.4609718  0.45511586 11794.961 0.9993764
+## a[36] -0.568722980 0.4883825 -1.3508191  0.19963906 11843.044 1.0000310
+## a[37]  0.137968487 0.5287009 -0.7026846  0.99994020 13278.111 0.9997344
+## a[38] -0.850687145 0.5571870 -1.7774934  0.01213161 10364.134 0.9993966
+## a[39]  0.004914938 0.3952371 -0.6174782  0.64819132 14097.240 0.9994162
+## a[40] -0.141786506 0.3082608 -0.6316565  0.34794249 10668.130 0.9997754
+## a[41] -0.004383858 0.3827758 -0.6166121  0.59850472 10514.829 0.9995111
+## a[42]  0.168918753 0.5688362 -0.7327963  1.08458407  9978.714 0.9998939
+## a[43]  0.129326839 0.2921857 -0.3436651  0.60574218 11046.474 0.9997414
+## a[44] -1.197130667 0.4377690 -1.9274989 -0.53324470 11352.519 0.9994470
+## a[45] -0.671780022 0.3334868 -1.2205361 -0.15152039 12472.177 0.9994907
+## a[46]  0.094337051 0.2120120 -0.2460668  0.43390167 11489.908 0.9995126
+## a[47] -0.122717184 0.5070791 -0.9151442  0.67167525  9255.183 1.0001174
+## a[48]  0.091143726 0.3047696 -0.3972208  0.58604608 10247.027 0.9993308
+## a[49] -1.718446306 1.0051628 -3.4455589 -0.17175209 10709.035 0.9994988
+## a[50] -0.100132729 0.4431537 -0.8153908  0.58793498  9604.779 0.9999754
+## a[51] -0.163930085 0.3333545 -0.6977364  0.35343817 10266.608 0.9997637
+## a[52] -0.228702959 0.2533622 -0.6406577  0.18191195 10181.224 0.9993850
+## a[53] -0.306296043 0.4457623 -1.0242263  0.39982688 12270.699 0.9993078
+## a[54] -1.229858525 0.8597995 -2.6409693  0.07231312 11741.740 0.9995665
+## a[55]  0.306510576 0.3008586 -0.1771192  0.78893982 10851.559 0.9994809
+## a[56] -1.395816982 0.4836168 -2.1925360 -0.65215497 10266.260 0.9994535
+## a[57] -0.178527648 0.3383750 -0.7187435  0.34988073 10449.464 0.9993304
+## a[58] -1.713983500 0.7563239 -2.9815417 -0.57993213  8916.970 0.9995266
+## a[59] -1.222233780 0.4204669 -1.9215091 -0.56966356 12988.528 0.9996171
+## a[60] -1.250753257 0.3585617 -1.8302355 -0.70874171 11263.288 0.9997785</code></pre>
+<pre class="r"><code>precis(h12.1b, depth = 2)</code></pre>
+<pre><code>##               mean         sd       5.5%        94.5%     n_eff      Rhat
+## a[1]  -0.990691197 0.19270421 -1.3012959 -0.680139052  9240.617 0.9994839
+## a[2]  -0.587035381 0.33812376 -1.1294313 -0.063981538  9881.556 0.9995266
+## a[3]  -0.236563964 0.49067646 -1.0257276  0.558369686  8024.627 0.9996906
+## a[4]  -0.183153070 0.30159978 -0.6654029  0.300170912  9641.376 0.9994363
+## a[5]  -0.570277992 0.27653789 -1.0241336 -0.138425981  9903.444 0.9995416
+## a[6]  -0.809238409 0.23639621 -1.1873399 -0.436801440 10466.915 0.9998700
+## a[7]  -0.754592528 0.36088933 -1.3521997 -0.204241648  7716.627 0.9998146
+## a[8]  -0.513783083 0.27477198 -0.9485777 -0.076738086  8620.814 0.9994229
+## a[9]  -0.704433727 0.34209637 -1.2616952 -0.159097337  9020.903 0.9996429
+## a[10] -1.124432322 0.41425646 -1.8067903 -0.474475258  6022.495 1.0000227
+## a[11] -1.535643305 0.42729279 -2.2462209 -0.895804278  4787.171 1.0004567
+## a[12] -0.612470506 0.31151364 -1.1213832 -0.119403257  9294.946 0.9994076
+## a[13] -0.424023356 0.33089500 -0.9461158  0.094264730  9983.848 0.9995741
+## a[14]  0.390640067 0.17729844  0.1099799  0.676643425  8110.209 0.9994687
+## a[15] -0.554778197 0.32731315 -1.0792685 -0.038168790  9646.655 0.9994650
+## a[16] -0.128239608 0.34588208 -0.6703475  0.438416567  7778.595 0.9992811
+## a[17] -0.746242017 0.32906714 -1.2818081 -0.232248249  8645.256 0.9997193
+## a[18] -0.632401732 0.26419871 -1.0646742 -0.228385546 10808.366 0.9997079
+## a[19] -0.504123133 0.32191981 -1.0253305  0.009454510  8666.638 0.9996413
+## a[20] -0.487599018 0.37584153 -1.0945676  0.106267823  9897.758 0.9994590
+## a[21] -0.502551109 0.34974590 -1.0717619  0.052063024  9172.215 0.9996261
+## a[22] -0.954244615 0.36948999 -1.5694640 -0.374816331  7250.951 0.9996137
+## a[23] -0.757352675 0.39158274 -1.4054617 -0.139815750  8770.794 0.9993621
+## a[24] -1.164873489 0.42582496 -1.8736045 -0.510219741  6572.624 0.9997884
+## a[25] -0.275925853 0.22267874 -0.6356782  0.083288487 10763.563 0.9996751
+## a[26] -0.519962121 0.38687672 -1.1269807  0.074486827  9338.233 0.9994553
+## a[27] -1.176855373 0.30386028 -1.6681996 -0.693153408  6854.137 1.0005015
+## a[28] -0.964496089 0.28293534 -1.4159711 -0.531580404  8381.196 0.9998734
+## a[29] -0.794468901 0.30760786 -1.2852945 -0.304936283  9325.206 0.9995595
+## a[30] -0.140442696 0.23823114 -0.5171930  0.232952424  9302.644 1.0000279
+## a[31] -0.300604878 0.28991248 -0.7697204  0.166565983  9134.968 0.9998614
+## a[32] -0.968729777 0.34098401 -1.5157802 -0.436366023  7840.805 0.9996031
+## a[33] -0.422665865 0.37622801 -1.0263683  0.176919077  9552.490 0.9993195
+## a[34]  0.267022086 0.30241109 -0.2057854  0.770185483  8863.356 0.9996423
+## a[35] -0.132524641 0.25513266 -0.5333360  0.280587581  9124.183 0.9996466
+## a[36] -0.577909432 0.37000992 -1.1758846 -0.005232852 10414.728 1.0001108
+## a[37] -0.228874176 0.38351123 -0.8353061  0.381305731  8824.982 1.0000876
+## a[38] -0.706965429 0.37555106 -1.3111600 -0.111750068  8071.302 1.0000819
+## a[39] -0.208155371 0.30631573 -0.6881199  0.278272049  9385.131 0.9996092
+## a[40] -0.255289494 0.27108815 -0.6919006  0.172236837 10091.873 0.9995032
+## a[41] -0.206663189 0.30737103 -0.6983619  0.287421945  9645.897 0.9993798
+## a[42] -0.246703558 0.40640127 -0.8879421  0.395737323 10487.846 0.9997028
+## a[43] -0.044446439 0.25977110 -0.4544427  0.374598142  8643.859 0.9995060
+## a[44] -0.948731149 0.33401627 -1.4913705 -0.429883340  8094.909 0.9997901
+## a[45] -0.652196976 0.28485728 -1.1148600 -0.208290177 11828.787 0.9998474
+## a[46] -0.008510179 0.20212860 -0.3324252  0.316005617  8279.339 0.9997053
+## a[47] -0.343646696 0.36604843 -0.9242106  0.228962055 10312.168 0.9993494
+## a[48] -0.081541574 0.26202453 -0.4955322  0.336936379  9076.452 0.9995282
+## a[49] -0.860584309 0.47834262 -1.6520136 -0.131057606  7222.778 0.9994815
+## a[50] -0.306713884 0.33840561 -0.8426961  0.233854450 10406.919 0.9994141
+## a[51] -0.277382001 0.27031505 -0.7073991  0.158387731  9948.890 0.9996551
+## a[52] -0.298298800 0.23990849 -0.6834363  0.079552852  9781.794 0.9995128
+## a[53] -0.420119291 0.33707945 -0.9624811  0.107557689  9014.993 0.9994345
+## a[54] -0.787705336 0.44566789 -1.5298187 -0.096741364  8339.118 0.9993312
+## a[55]  0.090173757 0.26325117 -0.3322681  0.499310486  8369.715 0.9998637
+## a[56] -1.058190252 0.33550772 -1.6063987 -0.547872730  7533.925 0.9997171
+## a[57] -0.302586170 0.28794266 -0.7629405  0.157906352  9692.731 0.9995829
+## a[58] -0.997302947 0.43208938 -1.7110672 -0.350700585  6598.898 0.9997835
+## a[59] -0.996489408 0.32624167 -1.5334882 -0.486408756  7631.027 0.9993098
+## a[60] -1.046810327 0.29019472 -1.5287569 -0.596350717  7733.869 0.9994988
+## a_bar -0.536015259 0.08715399 -0.6730861 -0.399787823  4525.772 0.9996453
+## sigma  0.511688601 0.08166831  0.3902921  0.649979849  1728.561 1.0010903</code></pre>
+<pre class="r"><code>compare(h12.1a,h12.1b)</code></pre>
+<pre><code>##            WAIC       SE    dWAIC      dSE    pWAIC      weight
+## h12.1b 2513.762 24.90973  0.00000       NA 34.95735 0.993696056
+## h12.1a 2523.882 28.93088 10.12051 7.859757 53.92588 0.006303944</code></pre>
+<pre class="r"><code>pred_dat &lt;- data.frame(did = unique(d$district_id))
+predsa &lt;- link(h12.1a,pred_dat)
+predsb &lt;- link(h12.1b,pred_dat)
+
+results &lt;- data.frame(district = unique(d$district_id),
+                      fixed = apply(predsa, 2, mean),
+                      varying = apply(predsb, 2, mean)
+                      )
+head(results)</code></pre>
+<pre><code>##   district     fixed   varying
+## 1        1 0.2606433 0.2724392
+## 2        2 0.3623617 0.3608970
+## 3        3 0.7282216 0.4441161
+## 4        4 0.4985535 0.4553219
+## 5        5 0.3657583 0.3635787
+## 6        6 0.2979281 0.3102980</code></pre>
+<pre class="r"><code>results &lt;- results %&gt;%
+  gather(key = &quot;model&quot;, value = &quot;mu&quot;, fixed:varying)
+head(results)</code></pre>
+<pre><code>##   district model        mu
+## 1        1 fixed 0.2606433
+## 2        2 fixed 0.3623617
+## 3        3 fixed 0.7282216
+## 4        4 fixed 0.4985535
+## 5        5 fixed 0.3657583
+## 6        6 fixed 0.2979281</code></pre>
+<pre class="r"><code>ggplot(results, aes(x = district, y = mu, color = model)) +
+  geom_point() +
+  scale_color_manual(values=c(&#39;black&#39;,&#39;blue&#39;)) +
+  geom_hline(yintercept = results %&gt;%
+               filter(model == &quot;fixed&quot;) %&gt;%
+               select(mu) %&gt;%
+               summarise(mean = mean(mu)) %&gt;%
+               .$mean) +
+  geom_hline(yintercept = results %&gt;%
+               filter(model == &quot;varying&quot;) %&gt;%
+               select(mu) %&gt;%
+               summarise(mean = mean(mu)) %&gt;%
+               .$mean,
+             color = &#39;blue&#39;
+             )</code></pre>
+<p><img src="data:image/png;base64,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" /><!-- --></p>
+<pre class="r"><code>## Add in urban as a variable
+
+dat2 &lt;- list(
+  did = d$district_id,
+  concep = d$use.contraception,
+  urban = d$urban
+)
+
+h12.1c &lt;- ulam(
+  alist(
+    concep ~ dbinom(1, p),
+    logit(p) &lt;- a[did] + bU*urban,
+    a[did] ~ dnorm(0, 1.5),
+    bU ~ dnorm(0, 1)
+  ), data = dat2, cores = 3, chains = 4, iter = 2500, log_lik = TRUE
+)
+
+h12.1d &lt;- ulam(
+  alist(
+    concep ~ dbinom(1, p),
+    logit(p) &lt;- a[did] + bU*urban,
+    a[did] ~ dnorm(a_bar, sigma),
+    bU ~ dnorm(0, 1),
+    a_bar ~ dnorm(0, 1.5),
+    sigma ~ dexp(1)
+  ), data = dat2, cores = 3, chains = 4, iter = 2500, log_lik = TRUE
+)
+
+precis(h12.1c, depth = 2)</code></pre>
+<pre><code>##              mean        sd        5.5%        94.5%     n_eff      Rhat
+## a[1]  -1.34711296 0.2244714 -1.70432900 -0.986607158  9337.666 0.9996108
+## a[2]  -0.59479280 0.4694346 -1.35121578  0.150366965 12480.998 0.9999107
+## a[3]   1.03284149 1.1643673 -0.74458164  2.975745035  9407.613 0.9999189
+## a[4]  -0.18182269 0.3683241 -0.76600452  0.407801748  9388.985 0.9995762
+## a[5]  -0.59654385 0.3310045 -1.12803523 -0.074082854 12526.673 0.9994445
+## a[6]  -0.92955287 0.2741163 -1.37875163 -0.499827707 10544.162 0.9995212
+## a[7]  -0.89233724 0.4915818 -1.68808261 -0.136041650 12145.143 0.9993741
+## a[8]  -0.51500938 0.3258713 -1.03616272 -0.007227253 10228.924 0.9994303
+## a[9]  -0.85585333 0.4323214 -1.56297485 -0.177407333 10417.871 0.9995010
+## a[10] -1.96011215 0.7355006 -3.21716601 -0.866209027  8966.199 0.9996318
+## a[11] -2.98502327 0.8135597 -4.35777127 -1.782349955  8410.384 0.9994953
+## a[12] -0.72779452 0.3882909 -1.36877133 -0.119097922 11812.581 0.9996067
+## a[13] -0.49192280 0.4023589 -1.13375960  0.145584804 10873.539 0.9994348
+## a[14]  0.07536298 0.2153373 -0.26857743  0.414618029  7413.468 0.9996258
+## a[15] -0.72161507 0.4389010 -1.41296138 -0.023247386 10504.757 0.9995125
+## a[16]  0.13685536 0.4333065 -0.56471784  0.839679368 11471.011 0.9994962
+## a[17] -0.84795284 0.4439372 -1.56706141 -0.151028350  8285.959 0.9998983
+## a[18] -0.80063623 0.3093001 -1.30470234 -0.315498656 10726.499 0.9993524
+## a[19] -0.53948799 0.4011522 -1.18445444  0.095661314 11254.449 0.9995904
+## a[20] -0.37943535 0.5141990 -1.20195481  0.407351657 11781.695 0.9994158
+## a[21] -0.63607693 0.4776715 -1.39320913  0.117918300 10930.088 0.9992751
+## a[22] -1.28699464 0.5158603 -2.15608141 -0.493675628  9527.380 0.9995501
+## a[23] -0.93947429 0.5419127 -1.82161382 -0.109575388 10395.579 0.9997470
+## a[24] -2.02325455 0.7324124 -3.24077060 -0.919163051  8449.925 0.9995478
+## a[25] -0.34595529 0.2510498 -0.74463701  0.056149872  9437.232 0.9994431
+## a[26] -0.43915265 0.5419311 -1.33002754  0.426593671 11169.314 0.9996154
+## a[27] -1.52290251 0.3903343 -2.16852428 -0.915235019  9976.400 0.9995197
+## a[28] -1.14892070 0.3305707 -1.67190582 -0.630541707 10612.193 1.0001978
+## a[29] -1.02021300 0.3837263 -1.65597343 -0.424430323  9849.854 0.9997288
+## a[30] -0.16603114 0.2571143 -0.58074076  0.240221351  9948.018 0.9995958
+## a[31] -0.26449645 0.3489101 -0.81501592  0.293514350 11048.305 0.9992906
+## a[32] -1.25618010 0.4724908 -2.03874867 -0.520775451  9382.262 0.9997865
+## a[33] -0.50674200 0.5294801 -1.36167111  0.331482697 12792.677 0.9994914
+## a[34]  0.51816891 0.3470593 -0.02511055  1.085669292 10427.767 1.0001471
+## a[35] -0.21009777 0.2923948 -0.66596914  0.267515076 10911.812 0.9997145
+## a[36] -0.64754465 0.4852974 -1.43933615  0.122017367  9150.541 0.9996214
+## a[37]  0.13777402 0.5426989 -0.74186849  1.007433803 10871.498 0.9994724
+## a[38] -1.08962465 0.5675297 -2.02251133 -0.222710248  8701.539 0.9999129
+## a[39] -0.03290093 0.3857876 -0.65084520  0.586222315 10452.149 0.9993322
+## a[40] -0.50125971 0.3179946 -1.02914732  0.010816298  8207.525 0.9994016
+## a[41] -0.05363537 0.3859795 -0.66206165  0.566896943 10493.063 0.9995194
+## a[42] -0.03171101 0.5822694 -0.97124017  0.918958189 10900.284 0.9995746
+## a[43] -0.05631522 0.3021193 -0.53701201  0.438576744  9450.402 0.9997185
+## a[44] -1.18861132 0.4445748 -1.93695053 -0.497534402  8483.509 0.9998665
+## a[45] -0.74481673 0.3245173 -1.27242021 -0.237041145  8791.549 0.9997045
+## a[46]  0.02319032 0.2157710 -0.31497902  0.364830017 11591.300 0.9994945
+## a[47] -0.31755672 0.5059177 -1.13688306  0.481759350  9904.238 0.9997841
+## a[48] -0.09370686 0.3119366 -0.58548488  0.402985395 10945.887 0.9995963
+## a[49] -1.72824776 1.0318697 -3.45222307 -0.176737414  8893.195 1.0007688
+## a[50] -0.20245420 0.4466778 -0.91259523  0.503551704 10983.256 0.9995126
+## a[51] -0.39579904 0.3322859 -0.93405444  0.135769711  9928.140 0.9994327
+## a[52] -0.38858290 0.2611685 -0.79701032  0.024990664 11125.536 0.9996205
+## a[53] -0.78243678 0.4598138 -1.52777467 -0.056949367  7927.047 0.9995247
+## a[54] -1.58628559 0.8145102 -2.91389308 -0.332861468  8881.028 0.9995770
+## a[55]  0.07866999 0.3094098 -0.41295683  0.574269929  8444.612 0.9994180
+## a[56] -1.47379527 0.4775265 -2.25603092 -0.745880336 10537.891 0.9994482
+## a[57] -0.37733140 0.3571360 -0.95399926  0.180694802 11334.041 0.9998764
+## a[58] -1.70842317 0.7966346 -3.05710755 -0.531761897 10268.790 0.9996803
+## a[59] -1.38012971 0.4041327 -2.04382419 -0.761757988  9660.646 0.9998614
+## a[60] -1.40106786 0.3566751 -1.97161051 -0.851560185 12024.864 0.9993329
+## bU     0.52667376 0.1214912  0.33313962  0.720678531  5030.025 0.9998221</code></pre>
+<pre class="r"><code>precis(h12.1d, depth = 2)</code></pre>
+<pre><code>##              mean         sd       5.5%        94.5%    n_eff      Rhat
+## a[1]  -1.30145547 0.20823393 -1.6396253 -0.975282379 4817.745 1.0000968
+## a[2]  -0.67532918 0.32341015 -1.1963089 -0.164677048 6573.315 0.9999029
+## a[3]  -0.50894410 0.43067583 -1.1833850  0.178087737 6045.114 1.0012817
+## a[4]  -0.42196744 0.29510269 -0.8905400  0.049568062 6639.018 0.9994673
+## a[5]  -0.64820749 0.27250151 -1.0876523 -0.218143918 7058.533 0.9996856
+## a[6]  -0.89311278 0.23065705 -1.2743538 -0.534901144 6603.180 1.0000193
+## a[7]  -0.81320573 0.34177883 -1.3720083 -0.275261048 7049.242 0.9997747
+## a[8]  -0.59912645 0.28298068 -1.0507692 -0.140424168 6120.463 0.9996667
+## a[9]  -0.81414500 0.32197018 -1.3443150 -0.314244671 7124.966 0.9996703
+## a[10] -1.15474960 0.39069296 -1.7915257 -0.555729975 4657.988 0.9995081
+## a[11] -1.50890443 0.40471649 -2.1686792 -0.896422828 3690.778 0.9998585
+## a[12] -0.75441597 0.29598312 -1.2267208 -0.287141595 7262.010 0.9995908
+## a[13] -0.62957651 0.31406020 -1.1388660 -0.129855177 6596.303 1.0003085
+## a[14] -0.12234383 0.20019122 -0.4395438  0.203837373 4136.109 0.9996546
+## a[15] -0.75769436 0.32579107 -1.2850196 -0.245133730 5896.568 1.0000648
+## a[16] -0.28778876 0.32471140 -0.8005627  0.242451399 6538.542 1.0002377
+## a[17] -0.80778321 0.33149941 -1.3384320 -0.290378869 6470.746 1.0003220
+## a[18] -0.81658031 0.25529133 -1.2261132 -0.415459098 5618.431 0.9997089
+## a[19] -0.63409187 0.30187263 -1.1326794 -0.155340973 7188.707 0.9996899
+## a[20] -0.57701350 0.35626597 -1.1517733 -0.019397628 7349.864 0.9999854
+## a[21] -0.71911487 0.33748584 -1.2588412 -0.182375078 7533.980 0.9999393
+## a[22] -0.99811989 0.34507281 -1.5596325 -0.463569214 5301.138 1.0002117
+## a[23] -0.83019948 0.35517704 -1.3956676 -0.286316721 6083.446 1.0001246
+## a[24] -1.18794941 0.38745953 -1.8367291 -0.598324781 4582.790 0.9996314
+## a[25] -0.45834157 0.21991177 -0.8062070 -0.110779448 5982.117 0.9997682
+## a[26] -0.61659411 0.36205538 -1.1949358 -0.041631096 7670.355 0.9992598
+## a[27] -1.23127981 0.29823237 -1.7169284 -0.772430624 5025.533 0.9996718
+## a[28] -1.01872354 0.25842677 -1.4346286 -0.617293560 5178.415 0.9998199
+## a[29] -0.92967966 0.28751749 -1.3927689 -0.489190374 6078.158 0.9997314
+## a[30] -0.33054240 0.22806239 -0.6965968  0.034644376 5914.378 1.0001990
+## a[31] -0.45875325 0.28701280 -0.9126611  0.003761781 6391.903 0.9996571
+## a[32] -1.01221613 0.34054733 -1.5753482 -0.480034033 6407.175 1.0000477
+## a[33] -0.66711348 0.34787370 -1.2249227 -0.121693962 6952.733 0.9997445
+## a[34]  0.04595597 0.29906584 -0.4161474  0.536954807 4776.709 1.0000166
+## a[35] -0.40282220 0.25475901 -0.8145611  0.006333092 6611.178 0.9999684
+## a[36] -0.71756232 0.34857280 -1.2799164 -0.168849251 6980.461 0.9996710
+## a[37] -0.36587766 0.35793745 -0.9295561  0.210291093 5655.019 1.0001085
+## a[38] -0.92021739 0.36512796 -1.5265524 -0.364192335 5497.291 1.0000346
+## a[39] -0.33390274 0.30345777 -0.8229562  0.148223538 6167.305 0.9998300
+## a[40] -0.63592580 0.26979989 -1.0684307 -0.209636394 6039.046 0.9998246
+## a[41] -0.34435533 0.30011883 -0.8242193  0.143977273 6725.828 1.0002217
+## a[42] -0.48869080 0.37309737 -1.0717861  0.118708351 6186.630 0.9998218
+## a[43] -0.29147374 0.26061631 -0.7036482  0.136466509 5636.296 0.9998758
+## a[44] -0.98803632 0.32264741 -1.5069657 -0.479034052 5918.376 0.9996697
+## a[45] -0.76209206 0.27573342 -1.1977538 -0.324789417 6857.809 0.9998697
+## a[46] -0.13576168 0.19312568 -0.4384998  0.173048180 6000.757 0.9998062
+## a[47] -0.57376051 0.36042401 -1.1319685  0.014440218 5596.084 1.0003002
+## a[48] -0.32550187 0.25909861 -0.7443398  0.080727764 6207.109 1.0004318
+## a[49] -0.94154783 0.44149897 -1.6591912 -0.245305569 5848.501 1.0000424
+## a[50] -0.48196493 0.33299592 -1.0181614  0.049804183 6783.318 0.9992567
+## a[51] -0.54823120 0.27269386 -0.9819096 -0.117283905 6286.873 0.9997678
+## a[52] -0.50116276 0.22981009 -0.8718978 -0.133772256 6621.897 1.0002770
+## a[53] -0.81899176 0.33573227 -1.3558987 -0.294308908 5676.570 0.9997108
+## a[54] -1.00440838 0.41490839 -1.6893182 -0.369446171 5260.852 0.9999098
+## a[55] -0.20527074 0.26118692 -0.6155736  0.223318521 5817.887 0.9997022
+## a[56] -1.13969830 0.32694933 -1.6758187 -0.632005623 4675.090 0.9996444
+## a[57] -0.54108541 0.28963352 -1.0040227 -0.085349136 5940.397 1.0000673
+## a[58] -1.04464444 0.38686408 -1.6845775 -0.447115837 5416.138 0.9999153
+## a[59] -1.14141541 0.30942101 -1.6434997 -0.664317697 5413.313 1.0007903
+## a[60] -1.18159711 0.28131588 -1.6378784 -0.748083802 4476.650 1.0002866
+## bU     0.63850071 0.11541054  0.4497712  0.822221291 2997.187 1.0004079
+## a_bar -0.69857998 0.08682286 -0.8349003 -0.558990896 2609.170 1.0018355
+## sigma  0.45444131 0.07906734  0.3368666  0.585542486 1359.367 1.0016097</code></pre>
+<pre class="r"><code>compare(h12.1c,h12.1d)</code></pre>
+<pre><code>##            WAIC       SE    dWAIC      dSE    pWAIC      weight
+## h12.1d 2490.577 26.55198  0.00000       NA 33.21361 0.998901635
+## h12.1c 2504.203 29.69971 13.62567 8.803328 54.94053 0.001098365</code></pre>
+<pre class="r"><code>compare(h12.1a,h12.1b,h12.1c,h12.1d)</code></pre>
+<pre><code>##            WAIC       SE    dWAIC       dSE    pWAIC       weight
+## h12.1d 2490.577 26.55198  0.00000        NA 33.21361 9.988924e-01
+## h12.1c 2504.203 29.69971 13.62567  8.803328 54.94053 1.098354e-03
+## h12.1b 2513.762 24.90973 23.18480 10.986555 34.95735 9.225797e-06
+## h12.1a 2523.882 28.93088 33.30531 13.795176 53.92588 5.852786e-08</code></pre>
+<pre class="r"><code>pred_dat2 &lt;- data.frame(did = rep(unique(d$district_id), each = 2),
+                       urban = rep(c(0,1), times = 60))
+predsc &lt;- link(h12.1c,pred_dat2)
+predsd &lt;- link(h12.1d,pred_dat2)
+
+results2 &lt;- data.frame(district = pred_dat2$did,
+                      urban = pred_dat2$urban,
+                      fixed = apply(predsc, 2, mean),
+                      varying = apply(predsd, 2, mean)
+                      )
+
+head(results2)</code></pre>
+<pre><code>##   district urban     fixed   varying
+## 1        1     0 0.2087368 0.2159828
+## 2        1     1 0.3076326 0.3415465
+## 3        2     0 0.3623628 0.3409517
+## 4        2     1 0.4840851 0.4910807
+## 5        3     0 0.6919680 0.3803500
+## 6        3     1 0.7761227 0.5308708</code></pre>
+<pre class="r"><code>results2 &lt;- results2 %&gt;%
+  gather(key = &quot;model&quot;, value = &quot;mu&quot;, fixed:varying)
+head(results2)</code></pre>
+<pre><code>##   district urban model        mu
+## 1        1     0 fixed 0.2087368
+## 2        1     1 fixed 0.3076326
+## 3        2     0 fixed 0.3623628
+## 4        2     1 fixed 0.4840851
+## 5        3     0 fixed 0.6919680
+## 6        3     1 fixed 0.7761227</code></pre>
+<pre class="r"><code>ggplot(results2, aes(x = district, y = mu, color = model,shape = as.factor(urban))) +
+  geom_point() +
+  scale_color_manual(values=c(&#39;black&#39;,&#39;blue&#39;)) +
+  geom_hline(yintercept = results2 %&gt;%
+               filter(model == &quot;fixed&quot; &amp; urban == 1) %&gt;%
+               select(mu) %&gt;%
+               summarise(mean = mean(mu)) %&gt;%
+               .$mean) +
+  geom_hline(yintercept = results2 %&gt;%
+               filter(model == &quot;varying&quot; &amp; urban == 1) %&gt;%
+               select(mu) %&gt;%
+               summarise(mean = mean(mu)) %&gt;%
+               .$mean,
+             color = &#39;blue&#39;
+             ) +
+  geom_hline(yintercept = results2 %&gt;%
+               filter(model == &quot;fixed&quot; &amp; urban == 0) %&gt;%
+               select(mu) %&gt;%
+               summarise(mean = mean(mu)) %&gt;%
+               .$mean,
+             linetype = &quot;dashed&quot;) +
+  geom_hline(yintercept = results2 %&gt;%
+               filter(model == &quot;varying&quot; &amp; urban == 0) %&gt;%
+               select(mu) %&gt;%
+               summarise(mean = mean(mu)) %&gt;%
+               .$mean,
+             color = &#39;blue&#39;,
+             linetype = &quot;dashed&quot;
+             )</code></pre>
+<p><img src="data:image/png;base64,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" /><!-- --></p>
 </div>
 </div>
 
