@@ -1,0 +1,283 @@
+---
+title: "01_24_2020_HW"
+author: "John D."
+date: "1/23/2020"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F}
+library(tidyverse)
+library(rethinking)
+```
+
+## Medium
+### 12M3. Re-estimate the basic Reed frog varying intercept model, but now using a Cauchy distribution in place of the Gaussian distribution for the varying intercepts. That is, fit this model:
+$$
+   s_i \sim Binomial(n_i, p_i) \\
+   logit(p_i) = \alpha_{TANK[i]} \\
+   \alpha_{TANK} \sim Cauchy(\alpha, \sigma) \\
+   \alpha \sim Normal(0, 1) \\
+   \sigma \sim HalfCauchy(0, 1)
+$$
+
+### Compare the posterior means of the intercepts, αtank, to the posterior means produced in the chapter, using the customary Gaussian prior. Can you explain the pattern of differences?
+
+```{r}
+data(reedfrogs)
+d <- reedfrogs
+str(d)
+
+# make the tank cluster variable
+d$tank <- 1:nrow(d)
+
+dat <- list(S = d$surv,
+            N = d$density,
+            tank = d$tank)
+
+# Original model
+m_normal <- ulam(
+  alist(
+    S ~ dbinom(N , p) ,
+    logit(p) <- a[tank] ,
+    a[tank] ~ dnorm(a_bar , sigma) ,
+    a_bar ~ dnorm(0 , 1.5) ,
+    sigma ~ dexp(1)
+  ),
+  data = dat ,
+  chains = 4 ,
+  log_lik = TRUE,
+  cores = 4
+)
+
+# Cauchy model
+m_cauchy <- ulam(
+  alist(
+    S ~ dbinom(N , p) ,
+    logit(p) <- a[tank] ,
+    a[tank] ~ dcauchy(a_bar , sigma) ,
+    a_bar ~ dnorm(0 , 1.5) ,
+    sigma ~ dcauchy(0, 1)
+  ),
+  data = dat ,
+  chains = 4 ,
+  log_lik = TRUE,
+  cores = 4
+)
+
+compare(m_normal,m_cauchy)
+
+precis(m_normal)
+precis(m_cauchy)
+
+post_normal <- extract.samples(m_normal)
+post_cauchy <- extract.samples(m_cauchy)
+
+max(post_normal$a)
+max(post_cauchy$a)
+
+dens(post_normal$a)
+dens(post_cauchy$a)
+
+dens(post_cauchy$a)
+dens(post_normal$a, add = T, col = 'blue')
+```
+
+The cauchy distribution has a lot longer tails than the normal distribution making the range of estimates larger.
+
+### 12M4. Fit the following cross-classified multilevel model to the chimpanzees data:
+$$
+L_i \sim Binomial(1, p_i) \\
+logit(p_i) = \alpha_{actor[i]} + \alpha_{block[i]} + (\beta_P + \beta_{PC}C_i)P_i \\
+\alpha_{actor} \sim Normal(\alpha, \sigma_{actor}) \\
+\alpha_{block} \sim Normal(\gamma, \sigma_{block}) \\
+\alpha, \gamma, \beta_P, \beta_{PC} \sim Normal(0, 10) \\
+\sigma_{actor}, \sigma_{block} \sim HalfCauchy(0, 1)
+$$
+```{r}
+data(chimpanzees)
+d <- chimpanzees
+d$treatment <- 1 + d$prosoc_left + 2 * d$condition
+dat_list <- list(
+  pulled_left = d$pulled_left,
+  actor = d$actor,
+  block_id = d$block,
+  treatment = as.integer(d$treatment)
+)
+
+m_chapter <- ulam(
+  alist(
+    pulled_left ~ dbinom(1 , p) ,
+    logit(p) <- a[actor] + g[block_id] + b[treatment],
+    b[treatment] ~ dnorm(0 , 0.5),
+    # adaptive priors
+    a[actor] ~ dnorm(a_bar , sigma_a),
+    g[block_id] ~ dnorm(0 , sigma_g),
+    # hyper-priors
+    a_bar ~ dnorm(0 , 1.5),
+    sigma_a ~ dexp(1),
+    sigma_g ~ dexp(1)
+  ) ,
+  data = dat_list ,
+  chains = 4 ,
+  cores = 4 ,
+  log_lik = TRUE
+)
+
+dat_list2 <- list(
+  pulled_left = d$pulled_left,
+  actor = d$actor,
+  block_id = d$block,
+  prosocial = as.integer(d$prosoc_left),
+  condition = as.integer(d$condition)
+) 
+m_problem <- ulam(
+  alist(
+    pulled_left ~ dbinom(1 , p) ,
+    logit(p) <- a[actor] + g[block_id] + (bP + bPC * condition) * prosocial,
+    # adaptive priors
+    a[actor] ~ dnorm(a_bar , sigma_a),
+    g[block_id] ~ dnorm(g_bar , sigma_g),
+    # hyper-priors
+    c(a_bar,g_bar,bP,bPC) ~ dnorm(0 , 10),
+    c(sigma_a,sigma_g) ~ dcauchy(0,1)
+  ) ,
+  data = dat_list2 ,
+  chains = 4 ,
+  cores = 4 ,
+  log_lik = TRUE
+)
+
+coeftab(m_chapter, m_problem)
+
+plot(m_chapter)
+plot(m_problem)
+
+post_c <- extract.samples(m_chapter)
+post_p <- extract.samples(m_problem)
+prob_c <- data.frame(inv_logit(post_c$a))
+prob_p <- data.frame(inv_logit(post_p$a))
+par(mfrow = c(1,2))
+plot(precis(prob_c))
+plot(precis(prob_p))
+
+neff_c <- data.frame(neff_c = precis( m_chapter , depth=2 )[['n_eff']])
+neff_c$param <- rownames(precis( m_chapter , depth=2 ))
+neff_p <- data.frame(neff_p = precis( m_problem , depth=2 )[['n_eff']])
+neff_p$param <- rownames(precis( m_problem , depth=2 ))
+
+par_names <- unique(c(neff_c$param,neff_p$param))
+neff_table <- data.frame(param = par_names)
+neff_table <- left_join(neff_table,neff_c) %>%
+  left_join(neff_p)
+neff_table <- as.matrix(neff_table[,-1])
+rownames(neff_table) <- par_names
+round(t(neff_table))
+```
+
+### Each of the parameters in those comma-separated lists gets the same independent prior. Compare the posterior distribution to that produced by the similar cross-classified model from the chapter. Also compare the number of effective samples. Can you explain the differences?
+
+The formula from the homework has a lot less effective samples compared to the formula from the chapter. Also a lot of uncertainty in a_bar and g_bar leads the estimate for each chimp to be abysmal.
+
+## Hard
+### 12H2. Return to the Trolley data, `data(Trolley)`, from Chapter 12. Define and fit a varying intercepts model for these data. Cluster intercepts on individual participants, as indicated by the unique values in the `id` variable. Include `action`, `intention`, and `contact` as ordinary terms. Compare the varying intercepts model and a model that ignores individuals, using both WAIC and posterior predictions. What is the impact of individual variation in these data?
+
+```{r}
+data(Trolley)
+d <- Trolley
+head(Trolley)
+dat <- list(
+  R = d$response,
+  A = d$action,
+  I = d$intention,
+  C = d$contact,
+  ID = as.numeric(d$id)
+)
+
+length(unique(dat$ID)) # 331 people
+
+m_old <- ulam(
+  alist(
+    R ~ dordlogit(phi , cutpoints),
+    phi <- bA * A + bC * C + BI * I ,
+    BI <- bI + bIA * A + bIC * C ,
+    c(bA, bI, bC, bIA, bIC) ~ dnorm(0 , 0.5),
+    cutpoints ~ dnorm(0 , 1.5)
+  ) ,
+  data = dat ,
+  chains = 4 ,
+  cores = 4,
+  log_lik = T
+)
+
+m_new <- ulam(
+  alist(
+    R ~ dordlogit(phi , cutpoints),
+    phi <- a[ID] + bA * A + bC * C + BI * I ,
+    BI <- bI + bIA * A + bIC * C ,
+    c(bA, bI, bC, bIA, bIC) ~ dnorm(0 , 0.5),
+    a[ID] ~ dnorm(a_bar,sigma_a),
+    a_bar ~ dnorm(0,1.5),
+    sigma_a ~ dexp(1),
+    cutpoints ~ dnorm(0 , 1.5)
+  ) ,
+  data = dat ,
+  chains = 4 ,
+  cores = 4,
+  log_lik = T
+)
+
+precis(m_old)
+precis(m_new)
+compare(m_old,m_new)
+coeftab(m_old,m_new)
+par(mfrow = c(1,1))
+plot(coeftab(m_old,m_new), pars = c("bIC","bIA","bC","bI","bA"))
+```
+
+New model has a way lower WAIC
+
+
+### 12H3. The Trolley data are also clustered by `story`, which indicates a unique narrative for each vignette. Define and fit a cross-classified varying intercepts model with both `id` and `story`. Use the same ordinary terms as in the previous problem. Compare this model to the previous models. What do you infer about the impact of different stories on responses?
+
+```{r}
+dat <- list(
+  R = d$response,
+  A = d$action,
+  I = d$intention,
+  C = d$contact,
+  ID = as.numeric(d$id),
+  S = as.numeric(d$story)
+)
+
+m_newest <- ulam(
+  alist(
+    R ~ dordlogit(phi , cutpoints),
+    phi <- a[ID] + s[S] + bA * A + bC * C + BI * I ,
+    BI <- bI + bIA * A + bIC * C ,
+    c(bA, bI, bC, bIA, bIC) ~ dnorm(0 , 0.5),
+    a[ID] ~ dnorm(a_bar,sigma_a),
+    s[S] ~ dnorm(0, sigma_s),
+    a_bar ~ dnorm(0,1.5),
+    c(sigma_a, sigma_s) ~ dexp(1),
+    cutpoints ~ dnorm(0 , 1.5)
+  ) ,
+  data = dat ,
+  chains = 4 ,
+  cores = 4,
+  log_lik = T
+)
+
+precis(m_newest)
+compare(m_old,m_new,m_newest)
+coeftab(m_old,m_new,m_newest)
+par(mfrow = c(1,1))
+plot(coeftab(m_old,m_new,m_newest), pars = c("bIC","bIA","bC","bI","bA"))
+```
+
+The newest model appears to be the best, but it's estimates seem worse.
