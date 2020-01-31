@@ -2,7 +2,9 @@
 title: "01_31_2020_HW"
 author: "John D."
 date: "1/30/2020"
-output: html_document
+output: 
+  html_document: 
+    keep_md: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -47,11 +49,15 @@ Ultimately you want to know if any of the mutants have a different length from M
 dat_35$flat2 <- paste(dat_35$treatment, dat_35$flat, sep = "_")
 
 dat_35_list <- list(
-  G = dat_35$genotype,
-  T = dat_35$treatment,
-  F = as.factor(dat_35$flat2),
+  G = as.integer(dat_35$genotype),
+  T = ifelse(dat_35$treatment == "sun", 0L, 1L),
+  F = as.integer(as.factor(dat_35$flat2)),
   L = dat_35$stem_length
 )
+
+str(dat_35_list)
+
+summary(dat_35)
 ```
 
 
@@ -64,9 +70,10 @@ dat_35_list <- list(
 m_1 <- ulam(
   alist(
     L ~ dnorm(mu, sigma),
-    mu <- a[G] + bT[T],
-    a[G] ~ dnorm(0, 2),
-    bT[T] ~ dnorm(0, 2),
+    mu <- a[G] + bT*T + bGT[G]*T,
+    a[G] ~ dnorm(145, 50),
+    bT ~ dnorm(0, 25),
+    bGT[G] ~ dnorm(0, 25),
     sigma ~ dexp(1)
   ),
   data = dat_35_list ,
@@ -82,14 +89,15 @@ m_1 <- ulam(
 m_2 <- ulam(
   alist(
     L ~ dnorm(mu, sigma),
-    mu <- a[G] + bT[T] + bF[F],
-    a[G] ~ dnorm(0, 2),
-    bT[T] ~ dnorm(0, 2),
-    bF[F] ~ dnorm(0, 2),
+    mu <- a[G] + bT*T + bGT[G]*T + bF[F],
+    a[G] ~ dnorm(145, 50),
+    bT ~ dnorm(0, 25),
+    bGT[G] ~ dnorm(0, 25),
+    bF[F] ~ dnorm(0,2),
     sigma ~ dexp(1)
   ),
-  data = dat_35_list,
-  chains = 4,
+  data = dat_35_list ,
+  chains = 4 ,
   log_lik = TRUE,
   cores = 4
 )
@@ -101,18 +109,42 @@ m_2 <- ulam(
 m_3 <- ulam(
   alist(
     L ~ dnorm(mu, sigma),
-    mu <- a[G] + bT[T] + bF[F],
-    a[G] ~ dnorm(0, 2),
-    bT[T] ~ dnorm(0, 2),
+    mu <- a[G] + bT*T + bGT[G]*T + bF[F],
+    a[G] ~ dnorm(145, 50),
+    bT ~ dnorm(0, 25),
+    bGT[G] ~ dnorm(0, 25),
     bF[F] ~ dnorm(f_bar, sigma_f),
     f_bar ~ dnorm(0,2),
     sigma_f ~ dexp(1),
     sigma ~ dexp(1)
   ),
-  data = dat_35_list,
-  chains = 4,
+  data = dat_35_list ,
+  chains = 4 ,
   log_lik = TRUE,
   cores = 4
+)
+```
+
+Should probably make a different model
+
+```{r}
+m_4 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a[G] + bT*T + bGT[G]*T + bF[F],
+    a[G] ~ dnorm(a_bar, sigma_a),
+    bT ~ dnorm(0, 25),
+    bGT[G] ~ dnorm(0, 25),
+    bF[F] ~ dnorm(0, sigma_f),
+    a_bar ~ dnorm(145,15),
+    c(sigma_a, sigma_f) ~ dexp(1),
+    sigma ~ dexp(1)
+  ),
+  data = dat_35_list ,
+  chains = 4 ,
+  log_lik = TRUE,
+  cores = 4,
+  iter = 5000
 )
 ```
 
@@ -120,20 +152,172 @@ m_3 <- ulam(
 ## Q3) Compare the models, which is preferred?
 
 ```{r}
-compare(m_1, m_2, m_3)
+precis(m_1, depth = 2)
+precis(m_2, depth = 2)
+precis(m_3, depth = 2)
+precis(m_4, depth = 2)
+compare(m_1, m_2, m_3, m_4)
 ```
 
-Model 3 is the best model based on WAIC
+Model 3 is the best model based on WAIC, but it's pretty close. Error of m_4 is within WAIC of m_3
 
-Q4) Using the hierarchical model, make posterior predictions
-a) for average cluster
-b) for same clusters
-c) showing the "marginal" from cluster
-d) showing new clusters.
+## Q4) Using the hierarchical model, make posterior predictions
 
-Q5) Reparameterize the model to help with divergent transitions (even if there aren't any)
+  a) for average cluster
+  
+```{r}
+post <- extract.samples(m_4)
 
-Q6--optional)
-a) Which genotypes differ from MoneyMaker in Sun conditions?
-b) Which genotypes differ from MoneyMaker in Shade conditions?
-c) Which genotypes differ from MoneyMaker in their response to shade (difference in sun vs shade)?
+link_abar <- function(treatment){
+  pred <- with(post, a_bar + bT*treatment)
+  return(pred)
+}
+
+raw <- sapply( 0:1 , function(i) link_abar( i ) )
+mu <- apply( raw , 2 , mean )
+ci <- apply( raw , 2 , PI )
+
+plot( NULL , xlab="treatment" , ylab="stem length", ylim=c(0,300) , xaxt="n" , xlim=c(1,2) )
+axis( 1 , at=1:2 , labels=c("Sun","Shade"))
+lines( 1:2 , mu )
+shade( ci , 1:2 )
+```
+
+  b) for same clusters
+
+```{r}
+link_same <- function(treatment, genotype = 1, flat = 1) {
+  pred <- with(post, a[,genotype] + bF[,flat] + bT*treatment)
+  return(pred)
+}
+raw <- sapply(0:1 , function(i) link_same( i , genotype = 1 , flat = 1))
+mu <- apply( raw , 2 , mean )
+ci <- apply( raw , 2 , PI )
+
+plot( NULL , xlab="treatment" , ylab="stem length", ylim=c(0,300) , xaxt="n" , xlim=c(1,2), main = "Money Maker")
+axis( 1 , at=1:2 , labels=c("Sun","Shade"))
+lines( 1:2 , mu )
+shade( ci , 1:2 )
+```
+
+  c) showing the "marginal" from cluster
+
+```{r}
+a_sim <- with( post , rnorm( length(post$a_bar) , a_bar , sigma_a ) )
+link_asim <- function( treatment ) {
+  pred <- with( post , a_sim + bT*treatment)
+  return(pred)
+}
+
+raw <- sapply( 0:1 , function(i) link_asim( i ))
+mu <- apply( raw , 2 , mean )
+ci <- apply( raw , 2 , PI )
+
+plot( NULL , xlab="treatment" , ylab="stem length", ylim=c(0,300) , xaxt="n" , xlim=c(1,2) )
+axis( 1 , at=1:2 , labels=c("Sun","Shade"))
+lines( 1:2 , mu )
+shade( ci , 1:2 )
+```
+
+  d) showing new clusters.
+
+```{r}
+plot( NULL , xlab="treatment" , ylab="stem length", ylim=c(0,300) , xaxt="n" , xlim=c(1,2) )
+axis( 1 , at=1:2 , labels=c("Sun","Shade"))
+for ( i in 1:100 ) lines( 1:2 , raw[i,] , col=col.alpha("black",0.25) , lwd=2 )
+```
+
+## Q5) Reparameterize the model to help with divergent transitions (even if there aren't any)
+
+```{r}
+m_5 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a_bar + bG[G]*sigma_g + # genotype intercepts
+          bT*T + # treatmet
+          bGT[G]*sigma_g*T + # interaction
+          bF[F]*sigma_f, # flat intercepts
+    bG[G] ~ dnorm(0, 25),
+    bT ~ dnorm(0, 25),
+    bGT[G] ~ dnorm(0, 25),
+    bF[F] ~ dnorm(0, 5),
+    a_bar ~ dnorm(145,15),
+    c(sigma_g, sigma_f) ~ dexp(1),
+    sigma ~ dexp(1)
+  ),
+  data = dat_35_list ,
+  chains = 4 ,
+  log_lik = TRUE,
+  cores = 4,
+  iter = 5000
+)
+
+compare(m_1, m_2, m_3, m_4, m_5)
+```
+
+No more divergent transitions. Also samples fast
+
+## Q6--optional)
+
+  a) Which genotypes differ from MoneyMaker in Sun conditions?
+  
+```{r}
+sun_sample_means <- post$a
+colnames(sun_sample_means) <- levels(dat_35$genotype)
+sun_sample_means <- as.data.frame(sun_sample_means) %>%
+  gather(key = "Genotype", value = "Stem_length", 1:6)
+
+ggplot(sun_sample_means, aes(x = Genotype, y = Stem_length)) +
+  geom_boxplot()
+
+plot(precis(m_5, depth = 2),
+     pars = c("bG[1]","bG[2]","bG[3]","bG[4]","bG[5]","bG[6]"),
+     labels = levels(dat_35$genotype),
+     main = "Genotype in Sun"
+)
+```
+  
+  b) Which genotypes differ from MoneyMaker in Shade conditions?
+
+```{r}
+shade_sample_means <- post$a + post$bGT + matrix(rep(post$bT,6),ncol = 6)
+colnames(shade_sample_means) <- levels(dat_35$genotype)
+shade_sample_means <- as.data.frame(shade_sample_means) %>%
+  gather(key = "Genotype", value = "Stem_length", 1:6)
+
+ggplot(shade_sample_means, aes(x = Genotype, y = Stem_length)) +
+  geom_boxplot()
+
+plot(precis(m_5, depth = 2),
+     pars = c("bGT[1]","bGT[2]","bGT[3]","bGT[4]","bGT[5]","bGT[6]"),
+     labels = levels(dat_35$genotype),
+     main = "Genotype by Treatment"
+)
+```
+
+  c) Which genotypes differ from MoneyMaker in their response to shade (difference in sun vs shade)?
+  
+```{r}
+sun_sample_means$Treatment <- "Sun"
+shade_sample_means$Treatment <- "Shade"
+sample_means <- rbind(sun_sample_means,shade_sample_means)
+
+ggplot(sample_means, aes(x = Genotype, y = Stem_length, color = Treatment)) +
+  geom_boxplot()
+
+diffs <- data.frame(Genotype = sun_sample_means$Genotype,
+                    Difference = shade_sample_means$Stem_length - sun_sample_means$Stem_length
+)
+
+diff_summaries <- diffs %>%
+  group_by(Genotype) %>%
+  group_map(~ summary(.x))
+
+diff_summaries <- as.data.frame(matrix(unlist(diff_summaries),6,6))
+colnames(diff_summaries) <- levels(dat_35$genotype)
+diff_summaries
+
+ggplot(diffs, aes(x = Genotype, y = Difference)) +
+  geom_boxplot()
+```
+
