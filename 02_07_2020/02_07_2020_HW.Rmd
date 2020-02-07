@@ -1,0 +1,353 @@
+---
+title: "02_07_2020_HW"
+author: "John D."
+date: "2/07/2020"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F}
+library(tidyverse)
+library(rethinking)
+```
+
+Please find attached csv.  This csv has measurements of tomato internodes and petioles from wildtype (Moneymaker) and various phytochrome mutant lines.  Measurements were made at 3 time points, 21, 28, and 35 days after germination under two treatments, simulated sun and simulated shade.
+
+for today let's focus on day 35.  Also let's focus on total stem length.  So: first
+
+```{r}
+dat <- read.csv("figure4phyE.csv")
+head(dat)
+```
+
+## Q1)
+
+  a) subset the data for day 35
+  
+```{r}
+dat_35 <- dat %>%
+  filter(day == 35)
+```
+
+  b) create a new column "stem_length" that is the sum of epi, int1, int2, and int3
+  
+```{r}
+dat_35$stem_length <- dat_35$epi + dat_35$int1 + dat_35$int2 + dat_35$int3
+```
+
+  c) although flats are listed as 1-6, flats in sun and shade are separate. Create a new column "flat2" that corrects for this.
+
+Ultimately you want to know if any of the mutants have a different length from Moneymaker, in sun or in shade, or if the response to shade differs.
+
+```{r}
+dat_35$flat2 <- paste(dat_35$treatment, dat_35$flat, sep = "_")
+
+dat_35_list <- list(
+  G = as.integer(dat_35$genotype),
+  T = ifelse(dat_35$treatment == "sun", 0L, 1L),
+  F = as.integer(as.factor(dat_35$flat2)),
+  L = dat_35$stem_length
+)
+
+str(dat_35_list)
+
+summary(dat_35)
+```
+
+
+
+## Q2) Fit 3 models, all of which include genotype and treatment
+
+```{r}
+m_1 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a[G] + bT*T,
+    a[G] ~ dnorm(145, 50),
+    bT ~ dnorm(0, 25),
+    sigma ~ dexp(1)
+  ),
+  data = dat_35_list,
+  chains = 4,
+  log_lik = TRUE,
+  cores = 4
+)
+```
+
+```{r}
+m_2 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a[G] + bT*T + bF[F],
+    a[G] ~ dnorm(145, 50),
+    bT ~ dnorm(0, 25),
+    bF[F] ~ dnorm(0, 5),
+    sigma ~ dexp(1)
+  ),
+  data = dat_35_list ,
+  chains = 4 ,
+  log_lik = TRUE,
+  cores = 4,
+  iter = 5000
+)
+```
+
+```{r}
+m_3 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a[G] + bT*T + bF[F],
+    a[G] ~ dnorm(145, 50),
+    bT ~ dnorm(0, 25),
+    bF[F] ~ dnorm(0, sigma_f),
+    a_bar ~ dnorm(145,15),
+    sigma_f ~ dexp(1),
+    sigma ~ dexp(1)
+  ),
+  data = dat_35_list ,
+  chains = 4 ,
+  log_lik = TRUE,
+  cores = 4,
+  iter = 5000
+)
+```
+
+```{r}
+m_4 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a[G] + bT*T + bF[F],
+    a[G] ~ dnorm(a_bar, sigma_a),
+    bT ~ dnorm(0, 25),
+    bF[F] ~ dnorm(0, sigma_f),
+    a_bar ~ dnorm(145,15),
+    c(sigma_a, sigma_f) ~ dexp(1),
+    sigma ~ dexp(1)
+  ),
+  data = dat_35_list ,
+  chains = 4 ,
+  log_lik = TRUE,
+  cores = 4,
+  iter = 5000
+)
+```
+
+```{r}
+m_5 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a[G] + bT[G]*T + bF[F],
+    a[G] ~ dnorm(145, 50),
+    bT[G] ~ dnorm(0, 25),
+    bF[F] ~ dnorm(0, 5),
+    a_bar ~ dnorm(145,15),
+    sigma ~ dexp(1)
+  ),
+  data = dat_35_list ,
+  chains = 4 ,
+  log_lik = TRUE,
+  cores = 4,
+  iter = 5000
+)
+```
+
+## Q3) Compare the models, which is preferred?
+
+```{r}
+precis(m_1, depth = 2)
+precis(m_2, depth = 2)
+precis(m_3, depth = 2)
+precis(m_4, depth = 2)
+precis(m_5, depth = 2)
+compare(m_1, m_2, m_3, m_4, m_5)
+```
+
+Model 2 is the best model based on WAIC.
+
+## Q4) Using the hierarchical model, make posterior predictions
+
+  a) for average cluster
+  
+```{r}
+post <- extract.samples(m_2)
+names(post)
+
+link_abar <- function(treatment){
+  pred <- with(post, rowMeans(a) + bT*treatment)
+  return(pred)
+}
+
+raw <- sapply( 0:1 , function(i) link_abar( i ) )
+mu <- apply( raw , 2 , mean )
+ci <- apply( raw , 2 , PI )
+
+plot( NULL , xlab="treatment" , ylab="stem length", ylim=c(0,300) , xaxt="n" , xlim=c(1,2) )
+axis( 1 , at=1:2 , labels=c("Sun","Shade"))
+lines( 1:2 , mu )
+shade( ci , 1:2 )
+```
+
+  b) for same clusters
+
+```{r}
+link_same <- function(treatment, genotype = 1){
+  pred <- with(post, a[,genotype] + bT*treatment + bF[,sample(1:12,1)])
+  return(pred)
+}
+raw <- sapply(0:1 , function(i) link_same( i , genotype = 1))
+mu <- apply( raw , 2 , mean )
+ci <- apply( raw , 2 , PI )
+
+plot( NULL , xlab="treatment" , ylab="stem length", ylim=c(0,300) , xaxt="n" , xlim=c(1,2), main = "Money Maker")
+axis( 1 , at=1:2 , labels=c("Sun","Shade"))
+lines( 1:2 , mu )
+shade( ci , 1:2 )
+```
+
+  c) showing the "marginal" from cluster
+
+```{r}
+a_sim <- with( post , rnorm( length(a), a, sigma ) )
+link_asim <- function( treatment ) {
+  pred <- with( post , a_sim + rep(bT*treatment, 6) + bF[,sample(1:12,1)])
+  return(pred)
+}
+
+raw <- sapply( 0:1 , function(i) link_asim( i ))
+mu <- apply( raw , 2 , mean )
+ci <- apply( raw , 2 , PI )
+
+plot( NULL , xlab="treatment" , ylab="stem length", ylim=c(0,300) , xaxt="n" , xlim=c(1,2) )
+axis( 1 , at=1:2 , labels=c("Sun","Shade"))
+lines( 1:2 , mu )
+shade( ci , 1:2 )
+```
+
+  d) showing new clusters.
+
+```{r}
+plot( NULL , xlab="treatment" , ylab="stem length", ylim=c(0,300) , xaxt="n" , xlim=c(1,2) )
+axis( 1 , at=1:2 , labels=c("Sun","Shade"))
+for ( i in 1:100 ) lines( 1:2 , raw[i,] , col=col.alpha("black",0.25) , lwd=2 )
+```
+
+## Q5) Reparameterize the model to help with divergent transitions (even if there aren't any)
+
+```{r}
+m_6 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a_bar + bG[G]*sigma_g + # genotype intercepts
+          bT*T + # treatmet
+          bF[F]*sigma_f, # flat intercepts
+    bG[G] ~ dnorm(0, 25),
+    bT ~ dnorm(0, 25),
+    bGT[G] ~ dnorm(0, 25),
+    bF[F] ~ dnorm(0, 5),
+    a_bar ~ dnorm(145,15),
+    c(sigma_g, sigma_f) ~ dexp(1),
+    sigma ~ dexp(1)
+  ),
+  data = dat_35_list ,
+  chains = 4 ,
+  log_lik = TRUE,
+  cores = 4,
+  iter = 5000
+)
+
+compare(m_1, m_2, m_3, m_4, m_5, m_6)
+```
+
+No more divergent transitions. Also samples fast
+
+## Q6--optional)
+
+  a) Which genotypes differ from MoneyMaker in Sun conditions?
+  
+```{r}
+sun_sample_means <- post$a
+colnames(sun_sample_means) <- levels(dat_35$genotype)
+sun_sample_means <- as.data.frame(sun_sample_means) %>%
+  gather(key = "Genotype", value = "Stem_length", 1:6)
+
+ggplot(sun_sample_means, aes(x = Genotype, y = Stem_length)) +
+  geom_boxplot()
+
+plot(precis(m_2, depth = 2),
+     pars = c("a[1]","a[2]","a[3]","a[4]","a[5]","a[6]"),
+     labels = levels(dat_35$genotype),
+     main = "Genotype in Sun"
+)
+```
+
+# Megan's Data
+
+I've attached some data from a common garden experiment, where plants from 15 different populations were planted out (locations are shown in Figure 1 here if you're curious). One goal for the experiment was to see if temperature of origin affected performance of plants in the common garden. Here are some practice questions, very similar to Julin's from last week. The data set is big-ish. I've already sub-sampled it, but there are still 3250 observations. The models are still running quickly on my computer, but if that's not the case for you, feel free to sub-sample it further. Please let me know if you have any questions.
+
+### 1. Fit a simple model with effects of temperature difference (temperature_diff_fall) on November germination (nov_germ). Temperature difference is already centered and scaled (i.e., negative values are the smallest temperature differences). Make sure to use the appropriate likelihood for the germination data (0 = no germ, 1  = germ).
+
+```{r}
+dat <- read_csv("clarkia_transplant_data.csv")
+head(dat)
+
+dat_list <- list(
+  Germ = as.integer(dat$nov_germ),
+  TDiff = dat$temperature_diff_fall
+)
+  
+m_1 <- ulam(
+  alist(Germ ~ dbinom(1 , p) ,
+        logit(p) <- a + bT*TDiff ,
+        c(a, bT) ~ dnorm(0 , 1)
+        ),
+  data = dat_list,
+  chains = 4,
+  cores = 4,
+  log_lik = TRUE
+)
+```
+
+
+2. Simulate from your priors to see if you've chosen reasonable priors, adjust them if necessary.
+
+```{r}
+summary(dat)
+ps <- extract.prior(m_1)
+preds <- link(m_1,
+          post = ps,
+          data = list(TDiff = seq(-2, 2, by = 0.10)))
+
+colnames(preds) <- paste0("TDiff_",round(seq(-2, 2, by = 0.10),2))
+preds <- as.data.frame(preds) %>%
+  gather(key = "TDiff", value = "Prior") %>%
+  mutate(Group = rep(1:1000,41),
+         TDiff = factor(TDiff, levels = unique(TDiff))
+  )
+         
+
+ggplot(preds, aes(x = as.factor(TDiff), y = Prior, group = Group)) + 
+  geom_line() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+These blocks were set up in the field, and had differences in soil depth, slope, and competitive environment. So maybe a model that includes block will describe the data better.
+
+3. Fit a model that includes an effect of block (blk), with no pooling.
+
+4. Fit a model that includes block, and allows partial pooling.
+
+The experiment included many individuals from each of the 15 populations. So, each individual is not an independent representative of a given temperature, but might be similar to other plants from that population for reasons besides temperature.
+
+5. Build a model that accounts for this by including population (pop) and allowing partial pooling between populations A) without block, and B) with block included as in the model above. How does including population affect the temperature estimate?
+
+6. Compare the five models you built using WAIC. Which fits best?
+
+7. Plot effects of temperature difference for the average block, and also make a plot that includes the variability across blocks.
+
+There are other complexities to this data. For example, there is also some family structure within populations (dam and sire) which could be included as hierarchical effects. There are also other response variables (November size, March survival and size, first flower date, last flower date, fruit number, estimated seed production) that might require different likelihoods (and in some cases treatment for over-dispersion or zero inflation). So if the above problems were too easy and you feel adventurous, you could try analyzing one of these responses instead of germination (you will need to filter out missing observations).
