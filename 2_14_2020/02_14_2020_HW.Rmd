@@ -185,4 +185,43 @@ Model 5 with pooling for population along with temperature and block effects has
 
 7. Plot effects of temperature difference for the average block, and also make a plot that includes the variability across blocks.
 
-There are other complexities to this data. For example, there is also some family structure within populations (dam and sire) which could be included as hierarchical effects. There are also other response variables (November size, March survival and size, first flower date, last flower date, fruit number, estimated seed production) that might require different likelihoods (and in some cases treatment for over-dispersion or zero inflation). So if the above problems were too easy and you feel adventurous, you could try analyzing one of these responses instead of germination (you will need to filter out missing observations).
+```{r}
+### Average block
+post <- extract.samples(m_5)
+str(post)
+
+link_bar_a <- function(Tdiff){
+  pred <- with(post, inv_logit(bar_a + bT*Tdiff))
+  return(pred)
+}
+
+raw <- sapply( seq(-2,2,0.1) , function(i) link_bar_a( i ) )
+mu <- apply( raw , 2 , mean )
+ci <- apply( raw , 2 , PI )
+
+plot( NULL , xlab="Temperature Difference" , ylab="Proportion Germinated", ylim=c(0,1), xlim=c(-2,2) )
+lines( seq(-2,2,0.1) , mu )
+shade( ci , seq(-2,2,0.1) )
+
+### variability across blocks
+
+a_sim <- with( post , rnorm( length(post$bar_a) , bar_a , sigma_a ) )
+#a_sim <- cbind(a_sim, Block = sample(1:4, length(a_sim), replace = T))
+link_asim <- function( Tdiff, Block ) {
+  pred <- with( post , inv_logit(a_sim + bT*Tdiff + bB[,Block]))
+  return(pred)
+}
+
+par(mfrow = c(2,2))
+temp_range <- seq(-2,2,0.1)
+
+for(i in 1:4){
+  raw <- mapply(function(Tdiff,Block) link_asim(Tdiff,Block), temp_range, i)
+  mu <- apply( raw , 2 , mean )
+  ci <- apply( raw , 2 , PI )
+  
+  plot( NULL , xlab="Temperature Difference" , ylab="Proportion Germinated", ylim=c(0,1), xlim=c(-2,2), main = paste("Block: ",i))
+  lines(temp_range, mu)
+  shade(ci, temp_range)
+}
+```
