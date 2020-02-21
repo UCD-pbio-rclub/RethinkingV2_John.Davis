@@ -1,0 +1,224 @@
+---
+title: "02_21_2020_HW"
+author: "John D."
+date: "2/21/2020"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F}
+library(tidyverse)
+library(rethinking)
+```
+
+Here is your much-awaited dataset for our upcoming meeting on the 21st of February, 2020. The data came fresh off the greenhouse on 2/8/2020 from a night break experiment. Thirty-two accessions from a lettuce F6 recombinant inbred line population were planted in the same greenhouse under 10hr light/14hr dark diurnal cycles. Three treatments are implemented: 
+1. "Nightbreak": the plants are grown on a bench surrounded by plastic blackout curtains. These plants receive a one-hour night break treatment at 12am every day (meaning the lights turn on in the middle of the night for an hour) in addition to the 10L/14D lighting. 
+2. "Control": the plants are grown on a bench surrounded by plastic blackout curtains. 10L/14D lighting. 
+3. "Control_NoCurtain": the plants are grown on a bench without any curtains. 10L/14D lighting. 
+
+The goals of the experiment are:
+a. to see if night break induces earlier flowering in lettuce;
+b. if so, do different lettuce genotypes respond to night breaks differently; and 
+c. which one(s) of the five candidate loci is/are associated with differential responses. 
+
+How to interpret the phenotype:
+Phenotype is recorded in the "Score" column. The different scores represent different developmental stages:
+1: rosette 
+2: bolted (elongation of the main stem)
+3: budding
+4: first flower
+5: first mature seed head
+
+Aaaaand finally here are your questions!
+
+### Q1: 
+
+  a. Load the dataset. Look for column "Score" for the response variable we are interested in. A developmental score of 1 or 2 indicates vegetative growth, while a score of 3, 4, or 5 indicates reproductive growth. Create a "Reproduction" column with values 0 and 1, where 0 indicates vegetative growth and 1 indicates reproductive growth. 
+
+```{r}
+dat <- read_csv("Nightbreak_02_08_20_Rclub.csv")
+dat$Reproduction <- ifelse(dat$Score < 3, 0, 1)
+str(dat)
+```
+
+  b. (optional) Take a look at columns "loc1" through "loc5". The levels "A" or "P" indicate which parental allele the RIL has inherited. Can you think of a reason why there are 32 lines in this experiment? 
+
+Probably has something to do with it being an F6 recombinant inbred line population and 2^5 == 32
+
+### Q2: Using the "Reproduction" column you created in Q1a as the response variable, fit a simple model with effects of genotype ("RIL") and treatment ("Treatment") on the rate of transitioning to reproductive growth by 2/8/20. (Things you might want to consider: appropriate likelihood function, intersection term). 
+
+```{r}
+dat_list <- list(
+  Reproduction = dat$Reproduction,
+  Treatment = as.numeric(as.factor(dat$Treatment)),
+  RIL = as.numeric(as.factor(dat$RIL))
+)
+
+summary(dat)
+
+model_1 <- ulam(
+  alist(
+    Reproduction ~ dbinom(1, p),
+    logit(p) <- a + bG[RIL] + bT[Treatment],
+    a ~ dnorm(0, 0.5),
+    bG[RIL] ~ dnorm(0,0.5),
+    bT[Treatment] ~ dnorm(0, 0.5)
+    ),
+  data = dat_list,
+  cores = 4,
+  chains = 4,
+  log_lik = TRUE
+)
+
+precis(model_1, depth = 2)
+```
+
+
+### Q3: Because we are more interested in the effects of individual loci than the performance of specific genotypes, fit a model with additive effects of the five loci and effect of treatment.  
+
+```{r}
+dat_list <- list(
+  Reproduction = dat$Reproduction,
+  Treatment = as.numeric(as.factor(dat$Treatment)),
+  L1 = ifelse(dat$loc1 == "P", 1, 0),
+  L2 = ifelse(dat$loc2 == "P", 1, 0),
+  L3 = ifelse(dat$loc3 == "P", 1, 0),
+  L4 = ifelse(dat$loc4 == "P", 1, 0),
+  L5 = ifelse(dat$loc5 == "P", 1, 0)
+)
+
+model_2 <- ulam(
+  alist(
+    Reproduction ~ dbinom(1, p),
+    logit(p) <- a + bT[Treatment] + b1*L1 + b2*L2 + b3*L3 + b4*L4 + b5*L5,
+    a ~ dnorm(0, 0.5),
+    c(b1, b2, b3, b4, b5) ~ dnorm(0,0.5),
+    bT[Treatment] ~ dnorm(0, 0.5)
+    ),
+  data = dat_list,
+  cores = 4,
+  chains = 4,
+  log_lik = TRUE
+)
+
+precis(model_2, depth = 2)
+```
+
+
+Q4: 
+Now let's look at some interaction terms. Can you fit a model that takes into account interaction effects between treatment and allele types at the five loci? How do you interpret the output? (I built a somewhat "ugly" model for this question. I'm excited to see what y'all's models look like.)
+
+```{r}
+model_3 <- ulam(
+  alist(
+    Reproduction ~ dbinom(1, p),
+    logit(p) <- a + # Intercept
+                bT[Treatment] + b1*L1 + b2*L2 + b3*L3 + b4*L4 + b5*L5 + # Additive
+                i1[Treatment]*L1 + i2[Treatment]*L2 +i3[Treatment]*L3 +i4[Treatment]*L4 +i5[Treatment]*L5, # Interaction
+    a ~ dnorm(0, 0.5),
+    c(b1, b2, b3, b4, b5) ~ dnorm(0,0.5),
+    bT[Treatment] ~ dnorm(0, 0.5),
+    i1[Treatment] ~ dnorm(0, 0.5),
+    i2[Treatment] ~ dnorm(0, 0.5),
+    i3[Treatment] ~ dnorm(0, 0.5),
+    i4[Treatment] ~ dnorm(0, 0.5),
+    i5[Treatment] ~ dnorm(0, 0.5)
+    ),
+  data = dat_list,
+  cores = 4,
+  chains = 4,
+  log_lik = TRUE
+)
+
+precis(model_3, depth = 2)
+```
+
+
+Q5:
+By simplifying the developmental score phenotype into a binary variable that indicates whether a plant has entered reproductive growth, we run the risk of losing potentially important information. Re-fit your favorite model from Q4 with the ordered categorical outcome variable of "Score." Do you observe any changes in your results? If so, why do you think it happened?
+
+```{r}
+compare(model_1, model_2, model_3)
+
+dat_list <- list(
+  Score = dat$Score,
+  Treatment = as.numeric(as.factor(dat$Treatment)),
+  L1 = ifelse(dat$loc1 == "P", 1, 0),
+  L2 = ifelse(dat$loc2 == "P", 1, 0),
+  L3 = ifelse(dat$loc3 == "P", 1, 0),
+  L4 = ifelse(dat$loc4 == "P", 1, 0),
+  L5 = ifelse(dat$loc5 == "P", 1, 0)
+)
+
+model_4 <- ulam(
+  alist(
+    Score ~ dordlogit(phi, kappa), # change to ordered categorical
+    phi <- a + # Intercept
+                bT[Treatment] + b1*L1 + b2*L2 + b3*L3 + b4*L4 + b5*L5 + # Additive
+                i1[Treatment]*L1 + i2[Treatment]*L2 +i3[Treatment]*L3 +i4[Treatment]*L4 +i5[Treatment]*L5, # Interaction
+    a ~ dnorm(0, 0.5),
+    c(b1, b2, b3, b4, b5) ~ dnorm(0,0.5),
+    bT[Treatment] ~ dnorm(0, 0.5),
+    i1[Treatment] ~ dnorm(0, 0.5),
+    i2[Treatment] ~ dnorm(0, 0.5),
+    i3[Treatment] ~ dnorm(0, 0.5),
+    i4[Treatment] ~ dnorm(0, 0.5),
+    i5[Treatment] ~ dnorm(0, 0.5),
+    kappa ~ dnorm(0, 0.5)
+    ),
+  data = dat_list,
+  cores = 4,
+  chains = 4,
+  log_lik = TRUE
+)
+
+precis(model_4, depth = 2)
+compare(model_1, model_2, model_3, model_4)
+```
+
+
+Q6:
+Each "Plot" # correspond to a specific spot on a bench. In other words, the same plot # indicates equivalent locations on their respective benches even across different treatments and replicates. Update your favorite model from Q4 or Q5 using hierarchical modeling that allow partial pooling across plots. Compare the models. What do they say and which model do you prefer?
+
+```{r}
+
+dat_list <- list(
+  Reproduction = dat$Reproduction,
+  Treatment = as.numeric(as.factor(dat$Treatment)),
+  RIL = as.numeric(as.factor(dat$RIL)),
+  Block = dat$Plot
+)
+
+model_5 <- ulam(
+  alist(
+    Reproduction ~ dbinom(1, p),
+    logit(p) <- bG[RIL] + bT[Treatment] +bB[Block],
+    a ~ dnorm(0, 0.5),
+    bG[RIL] ~ dnorm(0, 0.5),
+    bT[Treatment] ~ dnorm(0, 0.5),
+    bB[Block] ~ dnorm(b_bar, sigma_b),
+    b_bar ~ dnorm(0, 0.5),
+    sigma_b ~ dexp(1)
+    ),
+  data = dat_list,
+  cores = 4,
+  chains = 4,
+  log_lik = TRUE,
+  iter = 5000
+)
+
+precis(model_5, depth = 2)
+compare(model_1, model_2, model_3, model_4, model_5)
+```
+
+
+Q7 (optional):
+a. What can we conclude regarding treatment effect?
+b. What can we conclude regarding differential response to nightbreak treatment?
+c. If we concluded that there are differential responses to nightbreak across genotypes, which genetic loci contributed to the differential responses, and which ones did not?
