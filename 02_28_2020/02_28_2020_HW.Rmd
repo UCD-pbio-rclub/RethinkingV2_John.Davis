@@ -1,5 +1,5 @@
 ---
-title: "02_21_2020_HW"
+title: "02_28_2020_HW"
 author: "John D."
 date: "2/21/2020"
 output: 
@@ -191,7 +191,7 @@ compare(model_1, model_2, model_3, model_4, model_5)
 Q4: 
 Now let's look at some interaction terms. Can you fit a model that takes into account interaction effects between treatment and allele types at the five loci? How do you interpret the output? (I built a somewhat "ugly" model for this question. I'm excited to see what y'all's models look like.)
 
-```{r}
+```{r, eval=F}
 model_3 <- ulam(
   alist(
     Reproduction ~ dbinom(1, p),
@@ -220,7 +220,7 @@ precis(model_3, depth = 2)
 Q5:
 By simplifying the developmental score phenotype into a binary variable that indicates whether a plant has entered reproductive growth, we run the risk of losing potentially important information. Re-fit your favorite model from Q4 with the ordered categorical outcome variable of "Score." Do you observe any changes in your results? If so, why do you think it happened?
 
-```{r}
+```{r, eval=F}
 compare(model_1, model_2, model_3)
 
 dat_list <- list(
@@ -263,7 +263,7 @@ compare(model_1, model_2, model_3, model_4)
 Q6:
 Each "Plot" # correspond to a specific spot on a bench. In other words, the same plot # indicates equivalent locations on their respective benches even across different treatments and replicates. Update your favorite model from Q4 or Q5 using hierarchical modeling that allow partial pooling across plots. Compare the models. What do they say and which model do you prefer?
 
-```{r}
+```{r, eval=F}
 
 dat_list <- list(
   Reproduction = dat$Reproduction,
