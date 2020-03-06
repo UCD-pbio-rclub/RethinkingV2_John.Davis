@@ -152,11 +152,11 @@ W_i \sim Normal(\mu_i, \sigma) \\
 \mu_i = \alpha_{cafe[i]} + \beta_{cafe[i]}A_i \\
 \alpha_{cafe} \sim Normal(\alpha, \sigma_\alpha) \\
 \beta_{cafe} \sim Normal(\beta, \sigma_\beta) \\
-\alpha ∼ Normal(0, 10) \\
-\beta ∼ Normal(0, 10)  \\
-\sigma ∼ HalfCauchy(0, 1) \\
-\sigma_\alpha ∼ HalfCauchy(0, 1)  \\
-\sigma_\beta ∼ HalfCauchy(0, 1) \\
+\alpha \sim Normal(0, 10) \\
+\beta \sim Normal(0, 10)  \\
+\sigma \sim HalfCauchy(0, 1) \\
+\sigma_\alpha \sim HalfCauchy(0, 1)  \\
+\sigma_\beta \sim HalfCauchy(0, 1) \\
 $$
 
 Use WAIC to compare this model to the model from the chapter, the one that uses a multi-variate
