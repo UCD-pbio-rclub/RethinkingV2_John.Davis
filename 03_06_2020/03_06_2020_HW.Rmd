@@ -1,0 +1,59 @@
+---
+title: "03_06_2020_HW"
+author: "John D."
+date: "3/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rethinking)
+library(tidyverse)
+```
+
+## 14E1. Add to the following model varying slopes on the predictor x.
+$$
+y_i \sim Normal(\mu_i, \sigma) \\
+\mu_i = \alpha_{group[i]} + \beta x_i \\
+\alpha_{group} \sim Normal(\alpha, \sigma_\alpha) \\
+\alpha \sim Normal(0, 10) \\
+\beta \sim Normal(0, 1) \\
+\sigma \sim HalfCauchy(0, 2)  \\
+\sigma_\alpha \sim HalfCauchy(0, 2)
+$$
+$$
+y_i \sim Normal(\mu_i, \sigma) \\
+\mu_i = \alpha_{group[i]} + \beta_{group} x_i \\
+\left[ {\begin{array}{cc}
+    \alpha_{group} \\
+    \beta_{group}\ \\
+  \end{array} } \right] \sim MVNormal(\left[ {\begin{array}{cc}
+    \alpha} \\
+    \beta}\ \\
+  \end{array} } \right], S) \\
+S =  \left[ {\begin{array}{cc}
+   \sigma_\alpha & 0 \\
+   0 & \sigma_\beta\ \\
+  \end{array} } \right]
+  R
+  \left[ {\begin{array}{cc}
+   \sigma_\alpha & 0 \\
+   0 & \sigma_\beta\ \\
+  \end{array} } \right] \\ 
+\alpha \sim Normal(0, 10) \\
+\beta \sim Normal(0, 1) \\
+\sigma \sim HalfCauchy(0, 2)  \\
+\sigma_\alpha \sim HalfCauchy(0, 2) \\
+\sigma_\beta \sim HalfCauchy(0, 2) \\
+R \sim LKJcorr(2)
+$$
+
+14E1
+14E2
+14E3
+14M1
+14M2
+14M3
