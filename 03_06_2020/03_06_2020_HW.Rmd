@@ -213,8 +213,8 @@ m14.2 <- ulam(
     mu <- a_cafe[cafe] + b_cafe[cafe] * afternoon,
     a_cafe[cafe] ~ normal(a, sigma_a),
     b_cafe[cafe] ~ normal(b, sigma_b),
-    a ~ normal(0, 10),
-    b ~ normal(0, 10),
+    a ~ normal(5, 2),
+    b ~ normal(-1, 0.5),
     sigma ~ exponential(1),
     sigma_a ~ exponential(1),
     sigma_b ~ exponential(1)
