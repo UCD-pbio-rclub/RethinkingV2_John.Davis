@@ -1,0 +1,16 @@
+---
+title: "03_06_2020_HW"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(rethinking)
+```
