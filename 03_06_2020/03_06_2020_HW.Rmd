@@ -5,6 +5,8 @@ date: "3/6/2020"
 output: 
   html_document: 
     keep_md: yes
+  md_document:
+    variant: markdown_github
 ---
 
 ```{r setup, include=FALSE}
