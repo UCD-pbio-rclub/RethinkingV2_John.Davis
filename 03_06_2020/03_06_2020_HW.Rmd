@@ -3,8 +3,9 @@ title: "03_06_2020_HW"
 author: "John D."
 date: "3/6/2020"
 output: 
-  md_document:
-    variant: markdown
+  github_document:
+    pandoc_args: --webtex
+
 ---
 
 ```{r setup, include=FALSE}
@@ -17,6 +18,8 @@ library(tidyverse)
 ```
 
 ## 14E1. Add to the following model varying slopes on the predictor x.
+
+
 $$
 y_i \sim Normal(\mu_i, \sigma) \\
 \mu_i = \alpha_{group[i]} + \beta x_i \\
