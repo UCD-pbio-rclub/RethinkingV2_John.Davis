@@ -1,0 +1,27 @@
+---
+title: "Untitled"
+author: "Your Name"
+date: "The Date"
+output:
+  github_document:
+    pandoc_args: --webtex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rethinking)
+library(tidyverse)
+```
+
+$$
+y_i \sim Normal(\mu_i, \sigma) \\
+\mu_i = \alpha_{group[i]} + \beta x_i \\
+\alpha_{group} \sim Normal(\alpha, \sigma_\alpha) \\
+\alpha \sim Normal(0, 10) \\
+\beta \sim Normal(0, 1) \\
+\sigma \sim HalfCauchy(0, 2)  \\
+\sigma_\alpha \sim HalfCauchy(0, 2)
+$$
