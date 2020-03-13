@@ -1,0 +1,57 @@
+---
+title: "03_13_2020_HW"
+author: "John Davis"
+date: "03_13_2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+library(rethinking)
+library(tidyverse)
+```
+
+## 14M3. Re-estimate the varying slopes model for the UCBadmit data, now using a non-centered parameterization. Compare the efficiency of the forms of the model, using n_eff. Which is better? Which chain sampled faster?
+
+```{r}
+data(UCBadmit)
+d <- UCBadmit
+
+dat_list <- list(
+  admit = d$admit,
+  applications = d$applications,
+  gid = ifelse(d$applicant.gender == "male" , 1 , 0),
+  dept_id = rep(1:6, each = 2)
+)
+
+m14m3.c <- ulam(
+  alist(
+    admit ~ dbinom(applications, p),
+    logit(p) <- a[dept_id] + bD[dept_id]*gid,
+    vector[6]:delta[dept_id] ~ multi_normal(0, Rho_dept, sigma_dept),
+    alpha[gid] ~ dnorm(0,1),
+    sigma_dept ~ dexp(1),
+    Rho_dept ~ dlkjcorr(4)
+    ),
+  data = dat_list,
+  chains = 4,
+  cores = 4,
+  iter = 5000
+  )
+
+m11.8 <- ulam(
+alist(
+admit ~ dbinom( applications , p ) ,
+logit(p) <- a[gid] + delta[dept_id] ,
+a[gid] ~ dnorm( 0 , 1.5 ) ,
+delta[dept_id] ~ dnorm( 0 , 1.5 )
+) , data=dat_list , chains=4 , iter=4000 )
+
+
+
+```
