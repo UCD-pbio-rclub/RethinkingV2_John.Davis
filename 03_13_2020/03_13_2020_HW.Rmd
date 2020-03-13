@@ -25,33 +25,235 @@ d <- UCBadmit
 dat_list <- list(
   admit = d$admit,
   applications = d$applications,
-  gid = ifelse(d$applicant.gender == "male" , 1 , 0),
-  dept_id = rep(1:6, each = 2)
+  gender = ifelse(d$applicant.gender == "male" , 1 , 2),
+  dept = rep(1:6, each = 2)
 )
 
-m14m3.c <- ulam(
-  alist(
-    admit ~ dbinom(applications, p),
-    logit(p) <- a[dept_id] + bD[dept_id]*gid,
-    vector[6]:delta[dept_id] ~ multi_normal(0, Rho_dept, sigma_dept),
-    alpha[gid] ~ dnorm(0,1),
-    sigma_dept ~ dexp(1),
-    Rho_dept ~ dlkjcorr(4)
+system.time(
+  m14m3.centered <- ulam(
+    alist(
+      admit ~ dbinom(applications, p),
+      logit(p) <- a[dept] + beta[gender, dept],
+      # adaptive prior
+      vector[6]:beta[gender] ~ multi_normal(0, Rho_gender, sigma_gender),
+      # fixed priors
+      a[dept] ~ dnorm(0, 1),
+      sigma_gender ~ dexp(1),
+      Rho_gender ~ dlkjcorr(4)
     ),
+    data = dat_list,
+    chains = 4,
+    cores = 4,
+    iter = 5000,
+    log_lik = T
+  )
+)
+
+system.time(
+  m14m3.noncentered <- ulam(
+    alist(
+      admit ~ dbinom(applications, p),
+      logit(p) <- a[dept] + beta[gender, dept],
+      # adaptive prior - non-centered
+      transpars > matrix[gender, 6]:beta <-
+        compose_noncentered(sigma_gender, L_Rho_gender, z_gender),
+      matrix[6, gender]:z_gender ~ dnorm(0, 1),
+      # fixed priors
+      a[dept] ~ dnorm(0, 1),
+      vector[6]:sigma_gender ~ dexp(1),
+      cholesky_factor_corr[6]:L_Rho_gender ~ lkj_corr_cholesky(2),
+      # compute ordinary correlation matrixes from Cholskey factors
+      gq > matrix[6, 6]:Rho_gender <<-
+        multiply_lower_tri_self_transpose(L_Rho_gender)
+    ),
+    data = dat_list,
+    chains = 4,
+    cores = 4,
+    iter = 5000,
+    log_lik = T
+  )
+)
+
+compare(m14m3.centered,m14m3.noncentered)
+
+neff_nc <- precis(m14m3.noncentered,pars=c("beta"), depth = 3)$n_eff
+neff_c <- precis(m14m3.centered,pars=c("beta"), depth = 3)$n_eff
+plot( neff_c , neff_nc , xlab="centered (default)" ,
+ylab="non-centered (cholesky)" , lwd=1.5, xlim = c(0,5000), ylim = c(0,5000))
+abline(a=0,b=1,lty=2)
+```
+
+Non-centered model was twice as fast. Way more effective samples in the non-centered model
+
+# PDF
+### 1. Revisit the Bangladesh fertility data, `data(bangladesh)`. Fit a model with both varying intercepts by `district_id` and varying slopes of `urban` (as a 0/1 indicator variable) by `district_id`. You are still predicting `use.contraception`. Inspect the correlation between the slopes and the intercepts. Can you interpret this correlation in terms of what it tells you about the pattern of contraceptive use in the sample? It might help to play the varying effect estimates for both the intercepts and slops, by district. Then you can visualize the correlation and maybe more easily think throught what it means to have a particular correlation. Plotting predicted proportion of women using contraception, in each district, with urban women on one axis and rural on the other might also help/
+
+```{r}
+data("bangladesh")
+d <- bangladesh
+
+dat_list <- list(
+  district = as.integer(as.factor(d$district)),
+  contraception = d$use.contraception,
+  urban = d$urban
+)
+
+# Make it like the model m14.1
+model1.1 <- ulam(
+  alist(
+    contraception ~ binomial(1,p),
+    logit(p) <- alpha[district] + beta[district]*urban,
+    c(alpha,beta)[district] ~ multi_normal(c(a,b), Rho, Sigma),
+    a ~ dnorm(0,1),
+    b ~ dnorm(0,1),
+    Rho ~ lkj_corr(2),
+    Sigma ~ dexp(1)
+  ),
   data = dat_list,
   chains = 4,
   cores = 4,
-  iter = 5000
-  )
+  iter = 5000,
+  log_lik = T
+)
 
-m11.8 <- ulam(
-alist(
-admit ~ dbinom( applications , p ) ,
-logit(p) <- a[gid] + delta[dept_id] ,
-a[gid] ~ dnorm( 0 , 1.5 ) ,
-delta[dept_id] ~ dnorm( 0 , 1.5 )
-) , data=dat_list , chains=4 , iter=4000 )
+precis(model1.1, depth = 3, pars = c("a","b","Rho","Sigma"))
+
+post <- extract.samples(model1.1)
+
+dens( post$Rho[,1,2] )
+
+a <- apply(post$alpha, 2, mean)
+b <- apply(post$beta, 2, mean)
+plot(
+  a ,
+  b ,
+  xlab = "intercept" ,
+  ylab = "slope" ,
+  pch = 16 ,
+  col = rangi2 ,
+  ylim = c(min(b) - 0.1 , max(b) + 0.1) ,
+  xlim = c(min(a) - 0.1 , max(a) + 0.1)
+)
+
+# compute posterior mean bivariate Gaussian
+Mu_est <- c( mean(post$a) , mean(post$b) )
+rho_est <- mean( post$Rho[,1,2] )
+sa_est <- mean( post$Sigma[,1] )
+sb_est <- mean( post$Sigma[,2] )
+cov_ab <- sa_est*sb_est*rho_est
+Sigma_est <- matrix( c(sa_est^2,cov_ab,cov_ab,sb_est^2) , ncol=2 )
+# draw contours
+library(ellipse)
+for ( l in c(0.1,0.3,0.5,0.8,0.99) )
+lines(ellipse(Sigma_est,centre=Mu_est,level=l),
+col=col.alpha("black",0.2))
+abline(h=0)
+abline(v=0)
+
+rural <- inv_logit(a)
+urban <- inv_logit(a + b)
+
+plot(
+  urban ,
+  rural ,
+  xlab = "urban" ,
+  ylab = "rural" ,
+  pch = 16 ,
+  col = rangi2 ,
+  ylim = c(0,1) ,
+  xlim = c(0,1)
+)
+
+abline(h=0.5)
+abline(v=0.5)
+```
+
+Looks like being in an urban area increases probability of using contraception. Negative correlation between alpha and beta though. Rural use looks to be highly variable no matter what the urban use is.
 
 
+### 2. Now consider the predictor variables `age.centered` and `living.children`, also contained in `data(bangladesh)`. Suppose that age influences contraceptive use (changing attitudes) and number of children (older people have had more time to have kids). Number of children may also directly influence contraceptive use. Draw a DAG that reflects these hypothetical relationships. Then build models needed to evaulate the DAG. You will need at least two models. Retain `district` and `urban` as in Problem 1. What do you conclude about the causal influence of age and children?
+
+```{r}
+library(dagitty)
+dag2 <- dagitty( "dag {
+K -> C
+A -> C
+A -> K
+}")
+coordinates(dag2) <- list( x=c(C=1,A=0,K=2) , y=c(C=0,A=1,K=1))
+drawdag(dag2)
+```
+
+```{r}
+dat_list <- list(
+  district = as.integer(as.factor(d$district)),
+  contraception = d$use.contraception,
+  urban = d$urban,
+  age = standardize(d$age.centered),
+  kids = standardize(d$living.children)
+)
+
+m2.1 <- ulam(
+  alist(
+    contraception ~ binomial(1,p),
+    logit(p) <- alpha[district] + betaD[district]*urban + betaA*age,
+    c(alpha,betaD)[district] ~ multi_normal(c(a,b), Rho, Sigma),
+    a ~ dnorm(0,1),
+    b ~ dnorm(0,1),
+    betaA ~ dnorm(0,1),
+    Rho ~ lkj_corr(2),
+    Sigma ~ dexp(1)
+  ),
+  data = dat_list,
+  chains = 4,
+  cores = 4,
+  iter = 5000,
+  log_lik = T
+)
+
+precis(m2.1)
+
+m2.2 <- ulam(
+  alist(
+    contraception ~ binomial(1,p),
+    logit(p) <- alpha[district] + betaD[district]*urban + betaK*kids,
+    c(alpha,betaD)[district] ~ multi_normal(c(a,b), Rho, Sigma),
+    a ~ dnorm(0,1),
+    b ~ dnorm(0,1),
+    betaK ~ dnorm(0,1),
+    Rho ~ lkj_corr(2),
+    Sigma ~ dexp(1)
+  ),
+  data = dat_list,
+  chains = 4,
+  cores = 4,
+  iter = 5000,
+  log_lik = T
+)
+
+precis(m2.2)
+
+m2.3 <- ulam(
+  alist(
+    contraception ~ binomial(1,p),
+    logit(p) <- alpha[district] + betaD[district]*urban + betaA*age + betaK*kids,
+    c(alpha,betaD)[district] ~ multi_normal(c(a,b), Rho, Sigma),
+    a ~ dnorm(0,1),
+    b ~ dnorm(0,1),
+    betaA ~ dnorm(0,1),
+    betaK ~ dnorm(0,1),
+    Rho ~ lkj_corr(2),
+    Sigma ~ dexp(1)
+  ),
+  data = dat_list,
+  chains = 4,
+  cores = 4,
+  iter = 5000,
+  log_lik = T
+)
+
+precis(m2.3)
 
 ```
+
+Kids seem to be the deciding factor in contraception use. Having kids makes you not want to have kids
