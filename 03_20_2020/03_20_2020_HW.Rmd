@@ -19,11 +19,32 @@ library(foreign)
 
 ```{r}
 dat <- read.dta("NEW7080.dta") %>%
-  select(E = v4, W = v9, B = v18)
+  select(E = v4, W = v9, Q = v18)
+dat_small <- dat[sample(1:nrow(dat), 2001, replace = F),]
 ```
 
+```{r}
+dat_list <- list(
+  E = standardize(dat_small$E),
+  W = standardize(dat_small$W),
+  Q = standardize(dat_small$Q)
+)
+m1 <- ulam(
+  alist(
+    c(W,E) ~ multi_normal(c(muW,muE),Rho,Sigma),
+    muW <- aW + bEW*E,
+    muE <- aE + bQE*Q,
+    c(aW,aE) ~ dnorm(0, 0.2),
+    c(bEW,bQE) ~ dnorm(0, 0.5),
+    Rho ~ lkj_corr(2),
+    Sigma ~ dexp(1)
+  ), data = dat_list, chains = 4, cores = 4
+)
 
+precis(m1, depth = 3)
+```
 
+Based on this subset of data, education has probably doesn't affect wages. Can't confidently say anything.
 
 
 
@@ -38,8 +59,100 @@ light -- indicator for high or low RFR
 exp -- two independent experiments were done
 plate -- this is an incomplete block design with a subset (10? 12?) of accessions on each plate.
 Let's try a variety of increasingly complex models:
- No pooling
- Partial pooling of intercepts and slopes for line and intercepts for plate and experiment, but treat each variable separately (no multivariate component).  you might also consider adding an experiment slope effect
-As 2, but use a multivariate normal model for the line slope and intercept effects
-As 3, but non-centered
-Evaluate and compare the models.  Is there evidence of line, treatment, and line X treatment effects?  How does the magnitude of the experiment and plate effects compare to the line effects?
+
+1. No pooling
+ 
+```{r}
+dat <- read_delim("hyp.lengths.both.experiments.labels.csv", delim = ",")
+
+dat <- na.omit(dat)
+
+dat_list <- list(
+  H = standardize(dat$length),
+  L = ifelse(dat$light == "H", 1L, 0L),
+  A = as.integer(as.factor(dat$nativename)),
+  E = as.integer(as.factor(dat$exp)),
+  P = as.integer(as.factor(dat$plate))
+)
+
+m2.1 <- ulam(
+  alist(
+    H ~ dnorm(mu, sigma),
+    mu <- a[A] + bL[A]*L + bE[E] + bP[P],
+    a[A] ~ dnorm(0,0.5),
+    bL[A] ~ dnorm(0,0.5),
+    bE[E] ~ dnorm(0,0.25),
+    bP[P] ~ dnorm(0,0.25),
+    sigma ~ dexp(1)
+  ), data = dat_list, cores = 4, chains = 4, log_lik = T
+)
+
+precis(m2.1)
+```
+
+2. Partial pooling of intercepts and slopes for line and intercepts for plate and experiment, but treat each variable separately (no multivariate component).  you might also consider adding an experiment slope effect
+ 
+```{r}
+m2.2 <- ulam(
+  alist(
+    H ~ dnorm(mu, sigma),
+    mu <- a[A] + bL[A]*L + bE[E] + bP[P],
+    a[A] ~ dnorm(a_bar, a_sigma),
+    bL[A] ~ dnorm(0,0.5),
+    bE[E] ~ dnorm(0,0.25),
+    bP[P] ~ dnorm(0,0.25),
+    a_bar ~ dnorm(0,0.25),
+    a_sigma ~ dexp(1),
+    sigma ~ dexp(1)
+  ), data = dat_list, cores = 4, chains = 4, log_lik = T
+)
+
+precis(m2.2)
+```
+
+3. As 2, but use a multivariate normal model for the line slope and intercept effects
+
+```{r, eval=F}
+m2.3 <- ulam(
+  alist(
+    H ~ dnorm(mu, sigma),
+    mu <- a[A] + bL[L,A] + bE[E] + bP[P],
+    vector[121]:bL[L] ~ multi_normal(0,Rho_L,Sigma_L),
+    a[A] ~ dnorm(0, 0.5),
+    bE[E] ~ dnorm(0,0.25),
+    bP[P] ~ dnorm(0,0.25),
+    Rho_L ~ dlkjcorr(3),
+    Sigma_L ~ dexp(1),
+    sigma ~ dexp(1)
+  ), data = dat_list, cores = 4, chains = 4, log_lik = T
+)
+
+precis(m2.3)
+```
+
+4. As 3, but non-centered. Evaluate and compare the models.  Is there evidence of line, treatment, and line X treatment effects?  How does the magnitude of the experiment and plate effects compare to the line effects?
+
+```{r, eval=F}
+m2.4 <- ulam(
+  alist(
+    H ~ dnorm(mu, sigma),
+    mu <- a[A] + bL[L,A] + bE[E] + bP[P],
+    transpars > matrix[L, 121]:bL <- compose_noncentered(sigma_L, L_Rho_L, z_L),
+    matrix[121,L]:z_L ~ dnorm(0,1),
+    a[A] ~ dnorm(0, 0.5),
+    vector[121]:sigma_L ~ dexp(1),
+    cholesky_factor_corr[121]:L_Rho_L ~ lkj_corr_cholesky(2),
+    gq > matrix[121,121]:Rho_L <<- multiply_lower_tri_self_transpose(L_Rho_L),
+    bE[E] ~ dnorm(0,0.25),
+    bP[P] ~ dnorm(0,0.25),
+    sigma ~ dexp(1)
+  ), data = dat_list, cores = 4, chains = 4, log_lik = T
+)
+
+precis(m2.4)
+```
+
+```{r}
+compare(m2.1,m2.2)
+```
+
