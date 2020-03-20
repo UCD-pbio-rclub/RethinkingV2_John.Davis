@@ -1,0 +1,45 @@
+---
+title: "03_20_2020_HW"
+author: "John Davis"
+date: "03_20_2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+library(rethinking)
+library(tidyverse)
+library(foreign)
+```
+
+```{r}
+dat <- read.dta("NEW7080.dta") %>%
+  select(E = v4, W = v9, B = v18)
+```
+
+
+
+
+
+
+
+
+4. Attached are data from an experiment measuring hypocotyl length in ~ 180 natural arabidopsis accessions grown in high and low red:far-red light.  We want to know if there are differences in accessions in their length in high R:FR ("H") and in their response to low R:FR("L").  Also we want to obtain an estimate for hypocotyl length for each accession in high and low R:FR for downstream GWAS analysis.
+
+Relevant variables:
+length -- hypocotyl length
+line -- unique ID for each accession (you could also use nativename)
+light -- indicator for high or low RFR
+exp -- two independent experiments were done
+plate -- this is an incomplete block design with a subset (10? 12?) of accessions on each plate.
+Let's try a variety of increasingly complex models:
+ No pooling
+ Partial pooling of intercepts and slopes for line and intercepts for plate and experiment, but treat each variable separately (no multivariate component).  you might also consider adding an experiment slope effect
+As 2, but use a multivariate normal model for the line slope and intercept effects
+As 3, but non-centered
+Evaluate and compare the models.  Is there evidence of line, treatment, and line X treatment effects?  How does the magnitude of the experiment and plate effects compare to the line effects?
