@@ -1,0 +1,310 @@
+---
+title: "03_27_2020_HW"
+author: "John Davis"
+date: "03_27_2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+library(rethinking)
+library(tidyverse)
+library(foreign)
+```
+
+```{r}
+dat <- read.dta("../03_20_2020/NEW7080.dta") %>%
+  select(E = v4, W = v9, Q = v18)
+set.seed(519)
+dat_small <- dat[sample(1:nrow(dat), 2001, replace = F),]
+```
+
+```{r}
+dat_list <- list(
+  E = standardize(dat_small$E),
+  W = standardize(dat_small$W),
+  Q = standardize(dat_small$Q)
+)
+```
+```{r, eval=F}
+wage_model <- ulam(
+  alist(
+    c(W,E) ~ multi_normal(c(muW,muE),Rho,Sigma),
+    muW <- aW + bEW*E,
+    muE <- aE + bQE*Q,
+    c(aW,aE) ~ dnorm(0, 0.2),
+    c(bEW,bQE) ~ dnorm(0, 0.5),
+    Rho ~ lkj_corr(2),
+    Sigma ~ dexp(1)
+  ), data = dat_list, chains = 4, cores = 4
+)
+
+```
+```{r}
+load("wage_model.RData")
+precis(wage_model, depth = 3)
+rm(dat, dat_small,wage_model)
+```
+
+Based on this subset of data, education has probably doesn't affect wages. Can't confidently say anything.
+
+4. Attached are data from an experiment measuring hypocotyl length in ~ 180 natural arabidopsis accessions grown in high and low red:far-red light.  We want to know if there are differences in accessions in their length in high R:FR ("H") and in their response to low R:FR("L").  Also we want to obtain an estimate for hypocotyl length for each accession in high and low R:FR for downstream GWAS analysis.
+
+Relevant variables:
+length -- hypocotyl length
+line -- unique ID for each accession (you could also use nativename)
+light -- indicator for high or low RFR
+exp -- two independent experiments were done
+plate -- this is an incomplete block design with a subset (10? 12?) of accessions on each plate.
+Let's try a variety of increasingly complex models:
+
+
+```{r}
+dat <- read_delim("../03_20_2020/hyp.lengths.both.experiments.labels.csv", delim = ",") %>%
+  select(line,exp,plate,light,length)
+
+dat_list <- list(
+  Length = standardize(dat$length),
+  Light = ifelse(dat$light == "H", 1L, 0L),
+  Line = as.integer(as.factor(dat$line)),
+  Experiment = as.integer(as.factor(dat$exp)),
+  Plate = as.integer(as.factor(dat$plate))
+)
+
+summary(dat)
+```
+
+```{r, eval = F}
+model_1 <- ulam(
+  alist(
+    Length ~ dnorm(mu, sigma),
+    mu <- a + bLight*Light,
+    a ~ dnorm(0, 0.5),
+    bLight ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ), data = dat_list, iter = 2500, cores = 4, chains = 4, log_lik = T
+)
+save(model_1, file = "model_1.RData")
+```
+
+```{r}
+load("model_1.RData")
+precis(model_1)
+```
+
+```{r, eval = F}
+model_2 <- ulam(
+  alist(
+    Length ~ dnorm(mu, sigma),
+    mu <- a[Line] + bLight*Light,
+    a[Line] ~ dnorm(0, 0.5),
+    bLight ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ), data = dat_list, iter = 2500, cores = 4, chains = 4, log_lik = T
+)
+save(model_2, file = "model_2.RData")
+```
+
+```{r}
+load("model_2.RData")
+precis(model_2)
+compare(model_1,model_2)
+rm(model_1)
+gc()
+```
+
+```{r, eval = F}
+model_3 <- ulam(
+  alist(
+    Length ~ dnorm(mu, sigma),
+    mu <- a[Line] + bLight[Line]*Light,
+    a[Line] ~ dnorm(0, 0.5),
+    bLight[Line] ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ), data = dat_list, iter = 2500, cores = 4, chains = 4, log_lik = T
+)
+save(model_3, file = "model_3.RData")
+```
+
+```{r}
+load("model_3.RData")
+precis(model_3)
+compare(model_2,model_3)
+rm(model_2)
+gc()
+```
+
+```{r, eval = F}
+model_4 <- ulam(
+  alist(
+    Length ~ dnorm(mu, sigma),
+    mu <- a[Line] + bLight*Light,
+    a[Line] ~ dnorm(a_bar, sigma_a),
+    bLight ~ dnorm(0, 0.5),
+    a_bar ~ dnorm(0, 0.5),
+    sigma_a ~ dexp(1),
+    sigma ~ dexp(1)
+  ), data = dat_list, iter = 2500, cores = 4, chains = 4, log_lik = T
+)
+save(model_4, file = "model_4.RData")
+```
+
+```{r}
+load("model_4.RData")
+precis(model_4)
+compare(model_3, model_4)
+rm(model_4)
+gc()
+```
+
+```{r, eval = F}
+model_5 <- ulam(
+  alist(
+    Length ~ dnorm(mu, sigma),
+    mu <- a_bar + z[Line]*sigma_a + bLight*Light,
+    z[Line] ~ dnorm(0,1),
+    a_bar ~ dnorm(0, 1),
+    bLight ~ dnorm(0, 1),
+    sigma_a ~ dexp(1),
+    sigma ~ dexp(1)
+  ), data = dat_list, iter = 2500, cores = 4, chains = 4, log_lik = T
+)
+save(model_5, file = "model_5.RData")
+```
+
+```{r}
+load("model_5.RData")
+precis(model_5)
+compare(model_3, model_5)
+rm(model_5)
+gc()
+```
+
+```{r, eval = F}
+model_6 <- ulam(
+  alist(
+    Length ~ dnorm(mu, sigma),
+    mu <- a_line[Line] + b_line[Line]*Light,
+    c(a_line, b_line)[Line] ~ multi_normal( c(a,b), Rho, sigma_line),
+    a ~ dnorm(0, 1),
+    b ~ dnorm(0, 1),
+    sigma_line ~ dexp(1),
+    Rho ~ lkj_corr(2),
+    sigma ~ dexp(1)
+  ), data = dat_list, iter = 2500, cores = 4, chains = 4, log_lik = T
+)
+save(model_6, file = "model_6.RData")
+```
+
+```{r}
+load("model_6.RData")
+precis(model_6)
+compare(model_3, model_6)
+rm(model_3)
+gc()
+```
+
+```{r, eval = F}
+model_7 <- ulam(
+  alist(
+    Length ~ dnorm(mu, sigma),
+    mu <- g[Experiment] + alpha[Line,Experiment] + beta[Plate,Experiment]*Light,
+    
+    # adaptive priors
+    vector[2]:alpha[Line] ~ multi_normal(0, Rho_line, sigma_line),
+    vector[2]:beta[Plate] ~ multi_normal(0, Rho_plate, sigma_plate),
+    
+    # fixed priors
+    g[Experiment] ~ dnorm(0, 1),
+    c(sigma_line, sigma_plate) ~ dexp(1),
+    c(Rho_line,Rho_plate) ~ dlkjcorr(4),
+    sigma ~ dexp(1)
+  ), data = dat_list, iter = 2500, cores = 4, chains = 4, log_lik = T
+)
+save(model_7, file = "model_7.RData")
+```
+
+```{r}
+load("model_7.RData")
+precis(model_7)
+compare(model_6, model_7)
+rm(model_6)
+gc()
+```
+
+```{r, eval = F}
+model_8 <- ulam(
+  alist(
+    Length ~ dnorm(mu, sigma),
+    mu <- g[Experiment] + alpha[Line,Experiment] + beta[Plate,Experiment]*Light,
+    
+    # adaptive priors - non-centered
+    transpars> matrix[Line,2]:alpha <- compose_noncentered( sigma_line, L_Rho_line, z_line),
+    transpars> matrix[Plate,2]:beta <- compose_noncentered( sigma_plate, L_Rho_plate, z_plate),
+    matrix[2,Line]:z_line ~ dnorm(0,1),
+    matrix[2,Plate]:z_plate ~ dnorm(0,1),
+    
+    # fixed priors
+    g[Experiment] ~ dnorm(0, 1),
+    vector[2]:sigma_line ~ dexp(1),
+    cholesky_factor_corr[2]:L_Rho_line ~ lkj_corr_cholesky(2),
+    vector[2]:sigma_plate ~ dexp(1),
+    cholesky_factor_corr[2]:L_Rho_plate ~ lkj_corr_cholesky(2),
+    sigma ~ dexp(1),
+    
+    # compute ordinary correlation matrixes from Cholesky factors
+    gq> matrix[2,2]:Rho_line <<- multiply_lower_tri_self_transpose(L_Rho_line),
+    gq> matrix[2,2]:Rho_plate <<- multiply_lower_tri_self_transpose(L_Rho_plate)
+    
+  ), data = dat_list, iter = 2500, cores = 4, chains = 4, log_lik = T
+)
+save(model_8, file = "model_8.RData")
+```
+
+```{r}
+load("model_8.RData")
+precis(model_8)
+compare(model_7, model_8)
+rm(model_8)
+```
+
+```{r, eval = F}
+model_9 <- ulam(
+  alist(
+    Length ~ dnorm(mu, sigma),
+    mu <- g[Experiment] + alpha[Line,Experiment] + beta[Line,Experiment]*Light + bPlate[Plate],
+    
+    # adaptive priors - non-centered
+    transpars> matrix[Line,2]:alpha <- compose_noncentered( sigma_line1, L_Rho_line1, z_line1),
+    transpars> matrix[Line,2]:beta <- compose_noncentered( sigma_line2, L_Rho_line2, z_line2),
+    matrix[2,Line]:z_line1 ~ dnorm(0,1),
+    matrix[2,Line]:z_line2 ~ dnorm(0,1),
+    
+    # fixed priors
+    g[Experiment] ~ dnorm(0, 1),
+    vector[2]:sigma_line1 ~ dexp(1),
+    cholesky_factor_corr[2]:L_Rho_line1 ~ lkj_corr_cholesky(2),
+    vector[2]:sigma_line2 ~ dexp(1),
+    cholesky_factor_corr[2]:L_Rho_line2 ~ lkj_corr_cholesky(2),  
+    bPlate[Plate] ~ dnorm(0,1),
+    sigma ~ dexp(1),
+    
+    # compute ordinary correlation matrixes from Cholesky factors
+    gq> matrix[2,2]:Rho_line1 <<- multiply_lower_tri_self_transpose(L_Rho_line1),
+    gq> matrix[2,2]:Rho_line2 <<- multiply_lower_tri_self_transpose(L_Rho_line2)
+    
+  ), data = dat_list, iter = 2500, cores = 4, chains = 4, log_lik = T
+)
+save(model_9, file = "model_9.RData")
+```
+
+```{r}
+load("model_9.RData")
+precis(model_9)
+compare(model_7, model_9)
+```
