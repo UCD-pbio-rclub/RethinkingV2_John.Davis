@@ -1,0 +1,87 @@
+---
+title: "06_22_2020_HW"
+author: "John D."
+date: "6/22/2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+library(tidyverse)
+library(rethinking)
+```
+
+## 14M4. Use WAIC to compare the Gaussian process model of Oceanic tools to the models fit to the same data in Chapter 11. Pay special attention to the effective numbers of parameters, as estimated by WAIC
+
+### Old model
+```{r}
+data(Kline2) # load the ordinary data, now with coordinates
+d <- Kline2
+d$P <- scale(log(d$population))
+d$contact_id <- ifelse(d$contact == "high" , 2 , 1)
+
+dat <- list(T = d$total_tools ,
+            P = d$P ,
+            cid = d$contact_id)
+
+m.old <- ulam(
+  alist(
+    T ~ dpois(lambda),
+    log(lambda) <- a[cid] + b[cid] * P,
+    a[cid] ~ dnorm(3 , 0.5),
+    b[cid] ~ dnorm(0 , 0.2)
+  ),
+  data = dat ,
+  chains = 4 ,
+  log_lik = TRUE
+)
+```
+
+### New model
+```{r}
+data(islandsDistMatrix)
+# display (measured in thousands of km)
+Dmat <- islandsDistMatrix
+colnames(Dmat) <- c("Ml","Ti","SC","Ya","Fi","Tr","Ch","Mn","To","Ha")
+
+d$society <- 1:10 # index observations
+dat_list <- list(
+  T = d$total_tools,
+  P = d$population,
+  society = d$society,
+  Dmat = islandsDistMatrix
+)
+
+m.new <- ulam(
+  alist(
+    T ~ dpois(lambda),
+    lambda <- (a * P ^ b / g) * exp(k[society]),
+    vector[10]:k ~ multi_normal(0 , SIGMA),
+    matrix[10, 10]:SIGMA <- cov_GPL2(Dmat , etasq , rhosq , 0.01),
+    c(a, b, g) ~ dexp(1),
+    etasq ~ dexp(2),
+    rhosq ~ dexp(0.5)
+  ),
+  data = dat_list ,
+  chains = 4 ,
+  cores = 4 ,
+  iter = 2000,
+  log_lik = T
+)
+```
+
+```{r}
+WAIC(m.old)
+WAIC(m.new)
+compare(m.old, m.new)
+```
+
+The new model has a lower WAIC and a lower pWAIC compared to the old model. The new model also carries all the weight.
