@@ -1,0 +1,255 @@
+---
+title: "04_03_2020_HW"
+author: "John Davis"
+date: "04_03_2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+library(rethinking)
+library(tidyverse)
+```
+
+# PDF
+### 1. Revisit the Bangladesh fertility data, `data(bangladesh)`. Fit a model with both varying intercepts by `district_id` and varying slopes of `urban` (as a 0/1 indicator variable) by `district_id`. You are still predicting `use.contraception`. Inspect the correlation between the slopes and the intercepts. Can you interpret this correlation in terms of what it tells you about the pattern of contraceptive use in the sample? It might help to play the varying effect estimates for both the intercepts and slops, by district. Then you can visualize the correlation and maybe more easily think throught what it means to have a particular correlation. Plotting predicted proportion of women using contraception, in each district, with urban women on one axis and rural on the other might also help/
+
+```{r}
+data("bangladesh")
+d <- bangladesh
+
+dat_list <- list(
+  district = as.integer(as.factor(d$district)),
+  contraception = d$use.contraception,
+  urban = d$urban
+)
+
+# Make it like the model m14.1
+model1.1 <- ulam(
+  alist(
+    contraception ~ binomial(1,p),
+    logit(p) <- alpha[district] + beta[district]*urban,
+    c(alpha,beta)[district] ~ multi_normal(c(a,b), Rho, Sigma),
+    a ~ dnorm(0,1),
+    b ~ dnorm(0,1),
+    Rho ~ lkj_corr(2),
+    Sigma ~ dexp(1)
+  ),
+  data = dat_list,
+  chains = 4,
+  cores = 4,
+  iter = 5000,
+  log_lik = T
+)
+
+precis(model1.1, depth = 3, pars = c("a","b","Rho","Sigma"))
+
+post <- extract.samples(model1.1)
+
+dens( post$Rho[,1,2] )
+
+a <- apply(post$alpha, 2, mean)
+b <- apply(post$beta, 2, mean)
+plot(
+  a ,
+  b ,
+  xlab = "intercept" ,
+  ylab = "slope" ,
+  pch = 16 ,
+  col = rangi2 ,
+  ylim = c(min(b) - 0.1 , max(b) + 0.1) ,
+  xlim = c(min(a) - 0.1 , max(a) + 0.1)
+)
+
+# compute posterior mean bivariate Gaussian
+Mu_est <- c( mean(post$a) , mean(post$b) )
+rho_est <- mean( post$Rho[,1,2] )
+sa_est <- mean( post$Sigma[,1] )
+sb_est <- mean( post$Sigma[,2] )
+cov_ab <- sa_est*sb_est*rho_est
+Sigma_est <- matrix( c(sa_est^2,cov_ab,cov_ab,sb_est^2) , ncol=2 )
+# draw contours
+library(ellipse)
+for ( l in c(0.1,0.3,0.5,0.8,0.99) )
+lines(ellipse(Sigma_est,centre=Mu_est,level=l),
+col=col.alpha("black",0.2))
+abline(h=0)
+abline(v=0)
+
+rural <- inv_logit(a)
+urban <- inv_logit(a + b)
+
+plot(
+  urban ,
+  rural ,
+  xlab = "urban" ,
+  ylab = "rural" ,
+  pch = 16 ,
+  col = rangi2 ,
+  ylim = c(0,1) ,
+  xlim = c(0,1)
+)
+
+abline(h=0.5)
+abline(v=0.5)
+```
+
+Looks like being in an urban area increases probability of using contraception. Negative correlation between alpha and beta though. Rural use looks to be highly variable no matter what the urban use is.
+
+
+### 2. Now consider the predictor variables `age.centered` and `living.children`, also contained in `data(bangladesh)`. Suppose that age influences contraceptive use (changing attitudes) and number of children (older people have had more time to have kids). Number of children may also directly influence contraceptive use. Draw a DAG that reflects these hypothetical relationships. Then build models needed to evaulate the DAG. You will need at least two models. Retain `district` and `urban` as in Problem 1. What do you conclude about the causal influence of age and children?
+
+```{r}
+library(dagitty)
+dag2 <- dagitty( "dag {
+K -> C
+A -> C
+A -> K
+}")
+coordinates(dag2) <- list( x=c(C=1,A=0,K=2) , y=c(C=0,A=1,K=1))
+drawdag(dag2)
+```
+
+```{r}
+dat_list <- list(
+  district = as.integer(as.factor(d$district)),
+  contraception = d$use.contraception,
+  urban = d$urban,
+  age = standardize(d$age.centered),
+  kids = standardize(d$living.children)
+)
+
+m2.1 <- ulam(
+  alist(
+    contraception ~ binomial(1,p),
+    logit(p) <- alpha[district] + betaD[district]*urban + betaA*age,
+    c(alpha,betaD)[district] ~ multi_normal(c(a,b), Rho, Sigma),
+    a ~ dnorm(0,1),
+    b ~ dnorm(0,1),
+    betaA ~ dnorm(0,1),
+    Rho ~ lkj_corr(2),
+    Sigma ~ dexp(1)
+  ),
+  data = dat_list,
+  chains = 4,
+  cores = 4,
+  iter = 5000,
+  log_lik = T
+)
+
+precis(m2.1)
+
+m2.2 <- ulam(
+  alist(
+    contraception ~ binomial(1,p),
+    logit(p) <- alpha[district] + betaD[district]*urban + betaK*kids,
+    c(alpha,betaD)[district] ~ multi_normal(c(a,b), Rho, Sigma),
+    a ~ dnorm(0,1),
+    b ~ dnorm(0,1),
+    betaK ~ dnorm(0,1),
+    Rho ~ lkj_corr(2),
+    Sigma ~ dexp(1)
+  ),
+  data = dat_list,
+  chains = 4,
+  cores = 4,
+  iter = 5000,
+  log_lik = T
+)
+
+precis(m2.2)
+
+m2.3 <- ulam(
+  alist(
+    contraception ~ binomial(1,p),
+    logit(p) <- alpha[district] + betaD[district]*urban + betaA*age + betaK*kids,
+    c(alpha,betaD)[district] ~ multi_normal(c(a,b), Rho, Sigma),
+    a ~ dnorm(0,1),
+    b ~ dnorm(0,1),
+    betaA ~ dnorm(0,1),
+    betaK ~ dnorm(0,1),
+    Rho ~ lkj_corr(2),
+    Sigma ~ dexp(1)
+  ),
+  data = dat_list,
+  chains = 4,
+  cores = 4,
+  iter = 5000,
+  log_lik = T
+)
+
+precis(m2.3)
+
+compare(m2.1,m2.2,m2.3)
+```
+
+Kids seem to be the deciding factor in contraception use. Having kids makes you not want to have kids
+
+### 3. Modify any models from Problem 2 that contained that children variable and model the variable now as a monotonic ordered category, like education from the week we did ordered categories. Education in that example has 8 categories. Children here will have fewer (no on in the sample had 8 children). So modify the code appropriately. What do you conclude about the causal influence of each additional child on use of contraception?
+
+```{r}
+dat_list <- list(
+  district = as.integer(as.factor(d$district)),
+  contraception = d$use.contraception,
+  urban = d$urban,
+  age = standardize(d$age.centered),
+  kids = d$living.children,
+  ALPHA = rep(2,3)
+)
+
+m2.2_ordered <- ulam(
+  alist(
+    contraception ~ binomial(1,p),
+    logit(p) <- alpha[district] + betaD[district]*urban + betaK*sum(d_shell[1:kids]),
+    c(alpha,betaD)[district] ~ multi_normal(c(a,b), Rho, Sigma),
+    a ~ dnorm(0,1),
+    b ~ dnorm(0,1),
+    betaK ~ dnorm(0,1),
+    Rho ~ lkj_corr(2),
+    Sigma ~ dexp(1),
+    vector[4]: d_shell <<- append_row(0,delta),
+    simplex[3]: delta ~ dirichlet(ALPHA)
+  ),
+  data = dat_list,
+  chains = 4,
+  cores = 4,
+  iter = 5000,
+  log_lik = T
+)
+
+precis(m2.2_ordered)
+precis(m2.2_ordered, depth = 3, pars = "delta")
+
+m2.3_ordered <- ulam(
+  alist(
+    contraception ~ binomial(1,p),
+    logit(p) <- alpha[district] + betaD[district]*urban + betaA*age + betaK*sum(d_shell[1:kids]),
+    c(alpha,betaD)[district] ~ multi_normal(c(a,b), Rho, Sigma),
+    a ~ dnorm(0,1),
+    b ~ dnorm(0,1),
+    betaA ~ dnorm(0,1),
+    betaK ~ dnorm(0,1),
+    Rho ~ lkj_corr(2),
+    Sigma ~ dexp(1),
+    vector[4]: d_shell <<- append_row(0,delta),
+    simplex[3]: delta ~ dirichlet(ALPHA)
+  ),
+  data = dat_list,
+  chains = 4,
+  cores = 4,
+  iter = 5000,
+  log_lik = T
+)
+
+precis(m2.3_ordered)
+precis(m2.3_ordered, depth = 3, pars = "delta")
+
+compare(m2.2_ordered, m2.3_ordered)
+```
+
+Your second kid makes you not want to have kids anymore because you already perfected having a child on your second attempt
