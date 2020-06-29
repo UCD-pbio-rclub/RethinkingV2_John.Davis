@@ -1,0 +1,138 @@
+---
+title: "06_29_2020_HW"
+author: "John D."
+date: "6/29/2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rethinking)
+library(tidyverse)
+library(ape)
+```
+
+
+## 14M5. Modify the phylogenetic distance example to use group size as the outcome and brain size as a predictor. Assuming brain size influences group size, what is your estimate of the effect? How does phylogeny influence the estimate?
+
+```{r}
+## Data prep
+data(Primates301)
+data(Primates301_nex)
+d <- Primates301
+d$name <- as.character(d$name)
+dstan <- d[ complete.cases( d$group_size , d$body , d$brain ) , ]
+spp_obs <- dstan$name
+dat_list <- list(
+  N_spp = nrow(dstan),
+  M = standardize(log(dstan$body)),
+  B = standardize(log(dstan$brain)),
+  G = standardize(log(dstan$group_size)),
+  Imat = diag(nrow(dstan))
+)
+tree_trimmed <- keep.tip( Primates301_nex, spp_obs )
+Rbm <- corBrownian( phy=tree_trimmed )
+V <- vcv(Rbm)
+Dmat <- cophenetic( tree_trimmed )
+dat_list$V <- V[spp_obs , spp_obs]
+dat_list$R <- dat_list$V / max(V)
+dat_list$Dmat <- Dmat[spp_obs , spp_obs] / max(Dmat)
+```
+
+```{r}
+# No phylo
+model_14M5_no_phy <- ulam(
+  alist(
+    G ~ multi_normal(mu, SIGMA),
+    mu <- a + bM*M + bB* B,
+    matrix[N_spp, N_spp]:SIGMA <- Imat * sigma_sq,
+    a ~ normal(0 , 1),
+    c(bM, bB) ~ normal(0 , 0.5),
+    sigma_sq ~ exponential(1)
+  ),
+  data = dat_list ,
+  chains = 4 ,
+  cores = 4
+)
+
+precis(model_14M5_no_phy)
+```
+
+```{r}
+# Phylo OU
+model_14M5_ou <- ulam(
+  alist(
+    G ~ multi_normal(mu, SIGMA),
+    mu <- a + bM*M + bB* B,
+    matrix[N_spp,N_spp]: SIGMA <- cov_GPL1(Dmat , etasq , rhosq , 0.01),
+    a ~ normal(0, 1),
+    c(bM, bB) ~ normal(0, 0.5),
+    etasq ~ half_normal(1, 0.25),
+    rhosq ~ half_normal(3, 0.25)
+  ),
+  data = dat_list ,
+  chains = 4 ,
+  cores = 4
+)
+
+precis(model_14M5_ou)
+```
+
+Without phylogenetic data brain size has a strong influence on group size and body size has a slightly negative effect. Once phylogenetic data is applied using OU, both brain size and body size appear to have effects which overlap with 0 on group size
+
+## 14H2. Varying effects models are useful for modeling time series, as well as spatial clustering. In a time series, the observations cluster by entities that have continuity through time, such as individuals. Since observations within individuals are likely highly correlated, the multilevel structure can help quite a lot. You’ll use the data in data(Oxboys), which is 234 height measurements on 26 boys from an Oxford Boys Club (I think these were like youth athletic leagues?), at 9 different ages (centered and standardized) per boy. You’ll be interested in predicting height, using age, clustered by Subject (individual boy). Fit a model with varying intercepts and slopes (on age), clustered by Subject. Present and interpret the parameter estimates. Which varying effect contributes more variation to the heights, the intercept or the slope?
+
+```{r}
+data("Oxboys")
+head(Oxboys)
+
+d <- Oxboys
+dat_list <- list(
+  S = d$Subject,
+  A = d$age,
+  H = d$height,
+  O = d$Occasion
+)
+
+summary(d)
+
+model_14H2 <- ulam(
+  alist(
+    H ~ normal(mu, sigma),
+    mu <- a[S] + bS[S] * A,
+    c(a, bS)[S] ~ multi_normal(c(a_S, b_S) , Rho , sigma_S),
+    a_S ~ normal(150, 7),
+    b_S ~ normal(0, 1),
+    sigma_S ~ exponential(1),
+    sigma ~ exponential(1),
+    Rho ~ lkj_corr(2)
+  ),
+  data = dat_list,
+  chains = 4,
+  cores = 4,
+  log_lik = T,
+  iter = 5000
+)
+
+precis(model_14H2, depth = 3, pars = c("a", "bS", "Rho", "sigma"))
+```
+
+```{r}
+post <- extract.samples(model_14H2)
+mean(post$a)
+mean(var(post$a))
+mean(post$bS)
+mean(var(post$bS))
+dens( post$Rho[,1,2] )
+```
+
+## 14H3. Now consider the correlation between the varying intercepts and slopes. Can you explain its value? How would this estimated correlation influence your predictions about a new sample of boys?
+
+Intercept and slope are correlated positively. Tall initial height leads to faster growing rate
