@@ -66,8 +66,10 @@ dat_list <- list(
 
 ## 4. Does size predict range?  Evaluate this question without and with accounting for phylogenetic relationships.
 
+### No phylogenic data
+
+
 ```{r}
-# No phylogenic data
 
 no_phylo <- ulam(
   alist(
@@ -84,12 +86,45 @@ no_phylo <- ulam(
 )
 precis(no_phylo)
 
-# With phylo
+```
+
+### With phylo
+
+```{r}
 spp_obs <- rownames(d)
+Brown <- corBrownian(phy = tre)
+V <- vcv(Brown)
+dat_list$V <- V[spp_obs, spp_obs]
+dat_list$R <- dat_list$V / max(V)
 Dmat <- cophenetic(tre)
 dat_list$Dmat <- Dmat[spp_obs , spp_obs] / max(Dmat)
 
-phylo <- ulam(
+```
+
+```{r}
+# Brownian
+
+phylo_Brown <- ulam(
+  alist(
+    R ~ multi_normal(mu, SIGMA),
+    mu <- a + bS*S,
+    matrix[N_spp,N_spp]: SIGMA <- R * sigma_sq,
+    a ~ normal(0 , 1),
+    c(bS) ~ normal(0 , 0.5),
+    sigma_sq ~ exponential(1)
+  ),
+  data = dat_list ,
+  chains = 4 ,
+  cores = 4
+)
+
+precis(phylo_Brown)
+```
+
+```{r}
+# OU
+
+phylo_OU <- ulam(
   alist(
     R ~ multi_normal(mu, SIGMA),
     mu <- a + bS*S,
@@ -104,8 +139,13 @@ phylo <- ulam(
   cores = 4
 )
 
-precis(phylo)
+precis(phylo_OU)
 ```
+
+```{r}
+dens(Dmat)
+```
+
 
 ## 5. Discuss your findings.
 
