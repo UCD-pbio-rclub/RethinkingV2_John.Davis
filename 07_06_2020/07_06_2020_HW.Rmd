@@ -149,4 +149,4 @@ dens(Dmat)
 
 ## 5. Discuss your findings.
 
-Looks like adding phylogenetic data increased the effect of size on range. I am currently concerned with how Dmat looks though. Something isn't right and I should probably fix it.
+Looks like adding phylogenetic data increased the effect of size on range in the OU model. I am currently concerned with how Dmat looks though. Something isn't right and I should probably fix it.
