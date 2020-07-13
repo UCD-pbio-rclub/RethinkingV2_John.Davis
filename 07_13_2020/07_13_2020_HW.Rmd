@@ -1,0 +1,260 @@
+---
+title: "07_13_2020_HW"
+author: "John D."
+date: "7/13/2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rethinking)
+library(tidyverse)
+```
+
+## 15E1 Rewrite the Oceanic tools model (from Chapter 11) below so that it assumes measured error on the log population sizes of each society.
+$$
+T_i ∼ Poisson(µ_i) \\
+log\ µ_i = α + β\ log\ P_i \\
+α ∼ Normal(0, 10) \\
+β ∼ Normal(0, 1)
+$$
+$$
+T_i ∼ Poisson(µ_i) \\
+log\ µ_i = α + β\ log\ P_{true_i} \\
+P_{obs_i} \sim Normal(P_{true_i}, PSE_i) \\
+P_{true_i} \sim Normal(0,10) \\
+α ∼ Normal(0, 10) \\
+β ∼ Normal(0, 1)
+$$
+
+## 15E2 Rewrite the same model so that it allows imputation of missing values for log population. There aren’t any missing values in the variable, but you can still write down a model formula that would imply imputation, if any values were missing
+
+$$
+T_i ∼ Poisson(µ_i) \\
+log\ µ_i = α + β\ log\ P_{imp_i} \\
+P_{imp_i} \sim Normal(\nu, \sigma_p) \\
+c(α, \nu) ∼ Normal(0, 10) \\
+β ∼ Normal(0, 1) \\
+\sigma_p \sim exp(1)
+$$
+
+## 15M3 Repeat the divorce data measurement error models, but this time double the standard errors. Can you explain how doubling the standard errors impacts inference?
+
+```{r}
+data(WaffleDivorce)
+d <- WaffleDivorce
+```
+
+### First model
+```{r}
+#original
+dlist <- list(
+  D_obs = standardize(d$Divorce),
+  D_sd = d$Divorce.SE / sd(d$Divorce),
+  M = standardize(d$Marriage),
+  A = standardize(d$MedianAgeMarriage),
+  N = nrow(d)
+)
+
+m15.1 <- ulam(
+  alist(
+    D_obs ~ dnorm(D_true , D_sd),
+    vector[N]:D_true ~ dnorm(mu , sigma),
+    mu <- a + bA * A + bM * M,
+    a ~ dnorm(0, 0.2),
+    bA ~ dnorm(0, 0.5),
+    bM ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ) ,
+  data = dlist ,
+  chains = 4 ,
+  cores = 4
+)
+```
+
+```{r}
+#double
+dublist <- list(
+  D_obs = standardize(d$Divorce),
+  D_sd = (2*d$Divorce.SE) / sd(d$Divorce),
+  M = standardize(d$Marriage),
+  A = standardize(d$MedianAgeMarriage),
+  N = nrow(d)
+)
+
+m15.1dub <- ulam(
+  alist(
+    D_obs ~ dnorm(D_true , D_sd),
+    vector[N]:D_true ~ dnorm(mu , sigma),
+    mu <- a + bA * A + bM * M,
+    a ~ dnorm(0, 0.2),
+    bA ~ dnorm(0, 0.5),
+    bM ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ) ,
+  data = dublist ,
+  chains = 4 ,
+  cores = 4
+)
+```
+
+```{r}
+precis( m15.1)
+precis( m15.1dub)
+```
+
+### Second model
+
+```{r}
+# original
+dlist <- list(
+  D_obs = standardize(d$Divorce),
+  D_sd = d$Divorce.SE / sd(d$Divorce),
+  M_obs = standardize(d$Marriage),
+  M_sd = d$Marriage.SE / sd(d$Marriage),
+  A = standardize(d$MedianAgeMarriage),
+  N = nrow(d)
+)
+
+m15.2 <- ulam(
+  alist(
+    D_obs ~ dnorm(D_est , D_sd),
+    vector[N]:D_est ~ dnorm(mu , sigma),
+    mu <- a + bA * A + bM * M_est[i],
+    M_obs ~ dnorm(M_est , M_sd),
+    vector[N]:M_est ~ dnorm(0 , 1),
+    a ~ dnorm(0, 0.2),
+    bA ~ dnorm(0, 0.5),
+    bM ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ) ,
+  data = dlist ,
+  chains = 4 ,
+  cores = 4
+)
+```
+
+```{r}
+# Double
+dublist <- list(
+  D_obs = standardize(d$Divorce),
+  D_sd = (2*d$Divorce.SE) / sd(d$Divorce),
+  M_obs = standardize(d$Marriage),
+  M_sd = (2*d$Marriage.SE )/ sd(d$Marriage),
+  A = standardize(d$MedianAgeMarriage),
+  N = nrow(d)
+)
+
+m15.2dub <- ulam(
+  alist(
+    D_obs ~ dnorm(D_est , D_sd),
+    vector[N]:D_est ~ dnorm(mu , sigma),
+    mu <- a + bA * A + bM * M_est[i],
+    M_obs ~ dnorm(M_est , M_sd),
+    vector[N]:M_est ~ dnorm(0 , 1),
+    a ~ dnorm(0, 0.2),
+    bA ~ dnorm(0, 0.5),
+    bM ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ) ,
+  data = dublist ,
+  chains = 4 ,
+  cores = 4
+)
+```
+
+```{r}
+precis(m15.2)
+precis(m15.2dub)
+```
+
+In the first model, doubling the SE increased the effect of bM while also decreasing sigma. In the second model it also increased the effect of bM and decreased sigma.
+
+## 15H1 The data in data(elephants) are counts of matings observed for bull elephants of differing ages. There is a strong positive relationship between age and matings. However, age is not always assessed accurately. First, fit a Poisson model predicting MATINGS with AGE as a predictor. Second, assume that the observed AGE values are uncertain and have a standard error of ±5 years. Re-estimate the relationship between MATINGS and AGE, incorporating this measurement error. Compare the inferences of the two models.
+
+```{r}
+data(elephants)
+d <- elephants
+summary(d)
+plot(d$AGE,d$MATINGS)
+cor(d$AGE,d$MATINGS)
+```
+
+```{r}
+dat_list <- list(
+  Age = standardize(d$AGE),
+  Matings = d$MATINGS
+)
+
+# First
+m15H1.1 <- ulam(
+  alist(
+    Matings ~ dpois(lambda),
+    lambda <- alpha + bA * Age,
+    alpha ~ dnorm(0,1),
+    bA ~ dnorm(0,1)
+  ),
+  data = dat_list,
+  chains = 4,
+  cores = 4
+)
+
+# Second
+
+dat_list <- list(
+  Age_obs = standardize(d$AGE),
+  Matings = d$MATINGS,
+  N = nrow(d)
+)
+
+m15H1.2 <- ulam(
+  alist(
+    Matings ~ dpois(lambda),
+    lambda <- alpha + bA * Age_true[i],
+    Age_obs ~ dnorm(Age_true, 5),
+    vector[N]:Age_true ~ dnorm(0, 1),
+    alpha ~ dnorm(0,1),
+    bA ~ dnorm(0,1)
+  ),
+  data = dat_list,
+  chains = 4,
+  cores = 4
+)
+```
+
+```{r}
+precis(m15H1.1)
+precis(m15H1.2)
+```
+
+The effect of age is being washed away.
+
+## 15H2 Repeat the model fitting problem above, now increasing the assumed standard error on AGE. How large does the standard error have to get before the posterior mean for the coefficient on AGE reaches zero?
+
+```{r}
+m15H2 <- ulam(
+  alist(
+    Matings ~ dpois(lambda),
+    lambda <- alpha + bA * Age_true[i],
+    Age_obs ~ dnorm(Age_true, 15),
+    vector[N]:Age_true ~ dnorm(0, 1),
+    alpha ~ dnorm(0,1),
+    bA ~ dnorm(0,1)
+  ),
+  data = dat_list,
+  chains = 4,
+  cores = 4,
+  iter = 5000,
+  control=list(adapt_delta=0.99)
+)
+precis(m15H2)
+```
+
+15 seems too have centered it near zero.
