@@ -31,7 +31,7 @@ d$h <- d$height / mean(d$height)
 
 ```{r}
 ## Original Model
-m16.1 <- ulam(
+m16.1a <- ulam(
   alist(
     w ~ dlnorm(mu , sigma),
     exp(mu) <- 3.141593 * k * p ^ 2 * h ^ 3,
@@ -41,11 +41,175 @@ m16.1 <- ulam(
   ),
   data = d ,
   chains = 4 ,
-  cores = 4
+  cores = 4,
+  log_lik = T
 )
 
-precis(m16.1)
+precis(m16.1a)
 ```
 
+```{r}
+## New Model
+m16.1b <- ulam(
+  alist(
+    w ~ dlnorm(mu , sigma),
+    exp(mu) <- 3.141593 * k * p ^ 2 * h ^ Eh,
+    p ~ beta(2 , 18),
+    k ~ exponential(0.5),
+    Eh ~ exponential(0.5),
+    sigma ~ exponential(1)
+  ),
+  data = d ,
+  chains = 4 ,
+  cores = 4,
+  log_lik = T
+)
+
+precis(m16.1b)
+```
+
+```{r}
+## Another New Model
+m16.1c <- ulam(
+  alist(
+    w ~ dlnorm(mu , sigma),
+    exp(mu) <- 3.141593 * k * p ^ 2 * h ^ Eh,
+    p ~ beta(2 , 18),
+    k ~ exponential(0.5),
+    Eh ~ exponential(1),
+    sigma ~ exponential(1)
+  ),
+  data = d ,
+  chains = 4 ,
+  cores = 4,
+  log_lik = T
+)
+
+precis(m16.1c)
+```
+
+```{r}
+## Yet Another New Model
+m16.1d <- ulam(
+  alist(
+    w ~ dlnorm(mu , sigma),
+    exp(mu) <- 3.141593 * k * p ^ 2 * h ^ Eh,
+    p ~ beta(2 , 18),
+    k ~ exponential(0.5),
+    Eh ~ normal(0, 2),
+    sigma ~ exponential(1)
+  ),
+  data = d ,
+  chains = 4 ,
+  cores = 4,
+  log_lik = T
+)
+
+precis(m16.1d)
+```
+
+```{r}
+compare(m16.1a, m16.1b, m16.1c, m16.1d)
+```
+
+```{r}
+pairs(m16.1a)
+```
+```{r}
+pairs(m16.1b)
+```
+
+```{r}
+par(mfrow = c(1,2))
+h_seq <- seq( from=0 , to=max(d$h) , length.out=30 )
+w_sim <- sim( m16.1a , data=list(h=h_seq) )
+mu_mean <- apply( w_sim , 2 , mean )
+w_CI <- apply( w_sim , 2 , PI )
+plot( d$h , d$w , xlim=c(0,max(d$h)) , ylim=c(0,max(d$w)) , col=rangi2 ,
+lwd=2 , xlab="height (scaled)" , ylab="weight (scaled)" )
+lines( h_seq , mu_mean )
+shade( w_CI , h_seq )
+
+h_seq <- seq( from=0 , to=max(d$h) , length.out=30 )
+w_sim <- sim( m16.1b , data=list(h=h_seq) )
+mu_mean <- apply( w_sim , 2 , mean )
+w_CI <- apply( w_sim , 2 , PI )
+plot( d$h , d$w , xlim=c(0,max(d$h)) , ylim=c(0,max(d$w)) , col=rangi2 ,
+lwd=2 , xlab="height (scaled)" , ylab="weight (scaled)" )
+lines( h_seq , mu_mean )
+shade( w_CI , h_seq )
+```
+
+Did not get 3 back but a value closer to 2.32. It also appears to handle the short values better and tall values worse. This model probably needs to factor in age or be splines for different height rangles.
 
 ## 16M2. Conduct a prior predictive simulation for the cylinder height model. Begin with the priors in the chapter. Do these produce reasonable prior height distributions? If not, which modifications do you suggest?
+
+This part is coveredi n 16.3.2 of the book
+
+```{r}
+N <- 1e4
+p <- rbeta(N, 2 , 18)
+k <- rexp(N, 0.5)
+
+# Prior relative height to weight curve
+plot(
+  d$h,
+  d$w,
+  xlim = c(0, max(d$h)) ,
+  ylim = c(0, max(d$w)),
+  xlab = "height (scaled)",
+  ylab = "weight (scaled)"
+)
+for (i in 1:100)
+  curve(
+    exp(log(k[i]) + log(3.141593) + 2*log(p[i]) + 3*log(x)),
+    add = TRUE ,
+    col = grau() ,
+    lwd = 1.5
+    
+  )
+# Posterior relative height to weight curve
+h_seq <- seq( from=0 , to=max(d$h) , length.out=30 )
+w_sim <- sim( m16.1a , data=list(h=h_seq) )
+mu_mean <- apply( w_sim , 2 , mean )
+w_CI <- apply( w_sim , 2 , PI )
+plot( d$h , d$w , xlim=c(0,max(d$h)) , ylim=c(0,max(d$w)) , col=rangi2 ,
+lwd=2 , xlab="height (scaled)" , ylab="weight (scaled)" )
+lines( h_seq , mu_mean )
+shade( w_CI , h_seq )
+```
+
+Probably larger k
+
+```{r}
+N <- 1e4
+p <- rbeta(N, 2 , 18)
+k <- rexp(N, 0.1)
+
+# Prior relative height to weight curve
+plot(
+  d$h,
+  d$w,
+  xlim = c(0, max(d$h)) ,
+  ylim = c(0, max(d$w)),
+  xlab = "height (scaled)",
+  ylab = "weight (scaled)"
+)
+for (i in 1:100)
+  curve(
+    exp(log(k[i]) + log(3.141593) + 2*log(p[i]) + 3*log(x)),
+    add = TRUE ,
+    col = grau() ,
+    lwd = 1.5
+    
+  )
+# Posterior relative height to weight curve
+h_seq <- seq( from=0 , to=max(d$h) , length.out=30 )
+w_sim <- sim( m16.1a , data=list(h=h_seq) )
+mu_mean <- apply( w_sim , 2 , mean )
+w_CI <- apply( w_sim , 2 , PI )
+plot( d$h , d$w , xlim=c(0,max(d$h)) , ylim=c(0,max(d$w)) , col=rangi2 ,
+lwd=2 , xlab="height (scaled)" , ylab="weight (scaled)" )
+lines( h_seq , mu_mean )
+shade( w_CI , h_seq )
+```
