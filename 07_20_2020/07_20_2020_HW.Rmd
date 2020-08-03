@@ -223,3 +223,20 @@ precis(m1.1)
 precis(m1.2)
 precis(m2.1)
 ```
+
+```{r}
+post <- extract.samples(m2.1)
+imputed <- apply(post$B_impute, 2, mean)
+dat <- data.frame(M = M, B = B)
+dat$color <- ifelse(is.na(dat$B), "imputed", "observed")
+dat$B[is.na(dat$B)] <- imputed
+
+par(mfrow = c(1,2))
+ggplot(dat[,-3], aes(x = M, y = B)) +
+  geom_point() +
+  geom_smooth()
+ggplot(dat, aes(x = M, y = B, color = color)) +
+  geom_point() +
+  geom_smooth()
+```
+
