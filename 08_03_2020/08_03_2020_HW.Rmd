@@ -1,0 +1,51 @@
+---
+title: "08_03_2020_HW"
+author: "John D."
+date: "8/3/2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rethinking)
+library(tidyverse)
+```
+
+## 16M1.  Modify the cylinder height model, m16.1, so that the exponent 3 on height is instead a free parameter. Do you recover the value of 3 or not? Plot the posterior predictions for the new model. How do they differ from those of m16.1?
+
+```{r}
+## Load data
+data(Howell1)
+d <- Howell1
+# scale observed variables
+d$w <- d$weight / mean(d$weight)
+d$h <- d$height / mean(d$height)
+```
+
+```{r}
+## Original Model
+m16.1 <- ulam(
+  alist(
+    w ~ dlnorm(mu , sigma),
+    exp(mu) <- 3.141593 * k * p ^ 2 * h ^ 3,
+    p ~ beta(2 , 18),
+    k ~ exponential(0.5),
+    sigma ~ exponential(1)
+  ),
+  data = d ,
+  chains = 4 ,
+  cores = 4
+)
+
+precis(m16.1)
+```
+
+
+## 16M2. Conduct a prior predictive simulation for the cylinder height model. Begin with the priors in the chapter. Do these produce reasonable prior height distributions? If not, which modifications do you suggest?
