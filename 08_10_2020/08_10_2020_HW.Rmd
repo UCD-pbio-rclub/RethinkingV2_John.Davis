@@ -1,0 +1,53 @@
+---
+title: "08_10_2020_HW"
+author: "John D."
+date: "8/10/2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rethinking)
+library(tidyverse)
+```
+
+16H1, 16H2, 16H3, 16H4 and 16H5
+ 
+## 16M3. Use prior predictive simulations to investigate the Lynx-hare model. Begin with the priorsin the chapter. Which population dynamics do these produce? Can you suggest any improvements to the priors, on the basis of your simulations?
+
+## 16H1. Modify the Panda nut opening model so that male and female chimpanzees have different maximum adult body mass. The sex variable in data(Panda_nuts) provides the information you need. Be sure to incorporate the fact that you know, prior to seeing the data, that males are on average larger than females at maturity.
+
+## 16H2. Now return to the Panda nut model and try to incorporate individual differences. There are two parameters, ϕ and k, which plausibly vary by individual. Pick one of these, allow it to vary by individual, and use partial pooling to avoid overfitting. The variable chimpanzee in data(Panda_nuts) tells you which observations belong to which individuals.
+
+## 16H3. The chapter asserts that a typical, geocentric time series model might be one that uses lag variables. Here you’ll fit such a model and compare it to ODE model in the chapter. An autoregressive time series uses earlier values of the state variables to predict new values of the same variables. These earlier values are called lag variables. You can construct the lag variables here with:
+
+```{r}
+data(Lynx_Hare)
+dat_ar1 <- list(
+  L = Lynx_Hare$Lynx[2:21],
+  L_lag1 = Lynx_Hare$Lynx[1:20],
+  H = Lynx_Hare$Hare[2:21],
+  H_lag1 = Lynx_Hare$Hare[1:20]
+)
+```
+
+## Now you can use L_lag1 and H_lag1 as predictors of the outcomes L and H. Like this:
+
+$$
+L_t \sim LogNormal(log \mu_{L,t}, \sigma_L) \\
+\mu_{L,t} = \alpha_L + \beta_{LL}L_{t-1} + \beta_{LH}H_{t-1} \\
+H_t \sim LogNormal(log \mu_{H,t}, \sigma_H) \\
+\mu_{H,t} = \alpha_H + \beta_{HH}H_{t-1} + \beta_{HL}L_{t-1}
+$$
+## where Lt−1 and Ht−1 are the lag variables. Use ulam() to fit this model. Be careful of the priors of the α and β parameters. Compare the posterior predictions of the autoregressive model to the ODE model in the chapter. How do the predictions differ? Can you explain why, using the structures of the models?
+
+## 16H4. Adapt the autoregressive model to use a two-step lag variable. This means that Lt−2 and Ht−2, in addition to Lt−1 and Ht−1, will appear in the equation for µ. This implies that prediction depends upon not only what happened just before now, but also on what happened two time steps ago. How does this model perform, compared to the ODE model?
+
+## 16H5. Population dynamic models are typically very difficult to fit to empirical data. The Lynx-hare example in the chapter was easy, partly because the data are unusually simple and partly because the chapter did the difficult prior selection for you. Here’s another data set that will impress upon you both how hard the task can be and how badly Lotka-Volterra fits empirical data in general. The data in data(Mites) are numbers of predator and prey mites living on fruit.222 Model these data using the same Lotka-Volterra ODE system from the chapter. These data are actual counts of individuals, not just their pelts. You will need to adapt the Stan code in data(Lynx_Hare_model). Note that the priors will need to be rescaled, because the outcome variables are on a different scale. Prior predictive simulation will help. Keep in mind as well that the time variable and the birth and death parameters go together. If you rescale the time dimension, that implies you must also rescale the parameters.
