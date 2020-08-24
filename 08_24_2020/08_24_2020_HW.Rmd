@@ -108,6 +108,8 @@ These blocks were set up in the field, and had differences in soil depth, slope,
 
 3. Fit a model that includes an effect of block (blk), with no pooling.
 
+#### rethinking
+
 ```{r}
 dat_list <- list(
   Germ = as.integer(dat$nov_germ),
@@ -133,6 +135,19 @@ precis(m_2, depth = 2)
 plot(precis(m_2, depth = 2))
 ```
 
+#### brms
+
+```{r}
+get_prior(Germ ~ -1 + Block + Tdiff, data = dat_list)
+brms.2 <- brm(Germ ~ -1 + Block + Tdiff,
+              family = bernoulli(),
+              prior = c(set_prior("normal(0,1)", class = "b")),
+              data = dat_list
+              )
+brms.2 <- add_criterion(brms.2, "waic")
+summary(brms.2, prob=.89)
+```
+
 
 4. Fit a model that includes block, and allows partial pooling.
 
@@ -156,10 +171,27 @@ precis(m_3, depth = 2)
 plot(precis(m_3, depth = 2))
 ```
 
+#### brms
+
+```{r}
+get_prior(Germ ~ (1|Block) + Tdiff, data = dat_list)
+brms.3 <- brm(Germ ~ (1|Block) + Tdiff,
+              family = bernoulli(),
+              prior = c(set_prior("exponential(1)", class = "sd"),
+                        set_prior("normal(0,1)", class = "Intercept"),
+                        set_prior("normal(0,1)", class = "b", coef="Tdiff")),
+              data = dat_list
+              )
+brms.3 <- add_criterion(brms.3, "waic")
+summary(brms.3, prob=.89)
+```
+
 
 The experiment included many individuals from each of the 15 populations. So, each individual is not an independent representative of a given temperature, but might be similar to other plants from that population for reasons besides temperature.
 
 5. Build a model that accounts for this by including population (pop) and allowing partial pooling between populations A) without block, and B) with block included as in the model above. How does including population affect the temperature estimate?
+
+#### rethinking
 
 ```{r}
 dat_list <- list(
@@ -207,14 +239,45 @@ precis(m_5, depth = 2)
 plot(precis(m_5, depth = 2))
 ```
 
+#### brms
+
+```{r}
+# No block
+get_prior(Germ ~ (1|Pop) + Tdiff, data = dat_list)
+brms.4.1 <- brm(Germ ~ (1|Pop) + Tdiff,
+              family = bernoulli(),
+              prior = c(set_prior("exponential(1)", class = "sd"),
+                        set_prior("normal(0,1)", class = "Intercept"),
+                        set_prior("normal(0,1)", class = "b", coef="Tdiff")),
+              data = dat_list
+              )
+brms.4.1 <- add_criterion(brms.4.1, "waic")
+summary(brms.4.1, prob=.89)
+
+# With block
+get_prior(Germ ~ (1|Pop) + Block + Tdiff, data = dat_list)
+brms.4.2 <- brm(Germ ~ (1|Pop) + Block + Tdiff,
+              family = bernoulli(),
+              prior = c(set_prior("exponential(1)", class = "sd"),
+                        set_prior("normal(0,1)", class = "Intercept"),
+                        set_prior("normal(0,1)", class = "b")),
+              data = dat_list
+              )
+brms.4.2 <- add_criterion(brms.4.2, "waic")
+summary(brms.4.2, prob=.89)
+
+print(loo_compare(brms.4.1, brms.4.2,criterion = "waic"), simplify = FALSE)
+
+```
+
 
 6. Compare the five models you built using WAIC. Which fits best?
 
 ```{r}
-compare(m_1,m_2,m_3,m_4,m_5)
+print(loo_compare(brms.1, brms.2, brms.3, brms.4.1, brms.4.2, criterion = "waic"), simplify = FALSE)
 ```
 
-Model 5 with pooling for population along with temperature and block effects has the lowest WAIC.
+Model 5 with pooling for population along with temperature and block effects has the lowest WAIC. Same for brms and rethinking
 
 7. Plot effects of temperature difference for the average block, and also make a plot that includes the variability across blocks.
 
