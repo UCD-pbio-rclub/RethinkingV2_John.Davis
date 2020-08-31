@@ -1,0 +1,124 @@
+---
+title: "08_31_2020_HW"
+author: "John D."
+date: "08_31_2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rethinking)
+library(tidyverse)
+library(mefa)
+```
+
+```{r}
+dat <- read_csv("light_round1_tall.csv")
+head(dat)
+```
+
+### 1. Subset the data to only include wps==0.  We may look at water potential in a future week.
+
+```{r}
+dat.small <- dat %>%
+  filter(wps == 0)
+head(dat.small)
+```
+
+### 2. Let's start with a single pop "STDI".  Evaluate models relate germination rate to temperature.  Explain your model choice and prior choice.  Try to do this both with ulam and brm.
+
+```{r}
+dat.smaller <- dat.small %>%
+  filter(pops == "STDI")
+head(dat.smaller)
+
+ggplot(dat.smaller, aes(x = day, y = cumulative_germ, color = as.factor(temps))) +
+  geom_line() +
+  geom_point()
+
+ggplot(dat.smaller, aes(x = day, y = cumulative_prop_germ, color = as.factor(temps))) +
+  geom_line() +
+  geom_point()
+```
+
+Following the cat model. Probability of no germination conditional on the observation time so far.
+
+Need to make each seed a single event
+
+```{r}
+# Add germinated
+germs.dat <- data.frame(matrix(ncol = 11, nrow = 0))
+colnames(germs.dat) <- colnames(dat.smaller)
+germs <- dat.smaller %>%
+  filter(germ != 0)
+
+for(i in 1:nrow(germs)){
+  germs.dat <- rbind(germs.dat, rep(germs[i,], germs[[i,6]]))
+}
+germs.dat$germ <- 1
+
+# Add ungerminated
+
+no.germs.dat <- data.frame(matrix(ncol = 11, nrow = 0))
+colnames(no.germs.dat) <- colnames(dat.smaller)
+
+no.germs <- dat.smaller %>% group_by(temps) %>%
+  summarize(germs = sum(germ),
+            nogerm = max(total_seeds) - germs) %>%
+  pull(nogerm)
+
+nogerms <- dat.smaller %>% 
+  group_by(temps) %>%
+  filter(day == max(dat.smaller$day))
+
+for(i in 1:nrow(nogerms)){
+  no.germs.dat <- rbind(no.germs.dat, rep(nogerms[i,], no.germs[i]))
+}
+no.germs.dat$germ <- 0
+
+new.dat <- rbind(germs.dat,no.germs.dat)
+```
+
+Group by temp, days will parameter
+
+```{r}
+dat_list <- list(
+  Germ = new.dat$germ,
+  Days = new.dat$day,
+  Temp = as.numeric(as.factor(new.dat$temps))
+)
+
+model.1 <- ulam(
+  alist(
+    Days|Germ==1 ~ exponential(lambda),
+    Days|Germ==0 ~ custom(exponential_lccdf( !Y | lambda)),
+    lambda <- 1.0/mu,
+    log(mu) <- a[Temp],
+    a[Temp] ~ normal(0,1)
+  ), data = dat_list, chains = 4, cores = 4
+)
+precis(model.1, depth = 2)
+
+post <- extract.samples( model.1 )
+post$D <- exp(post$a)
+precis( post , 2 )
+
+```
+
+```{r}
+days.seq <- rep(seq(from = 1, to = 28), 8)
+temps.seq <- rep(seq(from = 1, to = 8), 28)
+mu <- link(model.1, data = data.frame(Days = days.seq, Temp = temps.seq))
+```
+
+```{r}
+
+```
+
