@@ -121,7 +121,6 @@ distributions[ which.max(entropies) ]
 ## 10.2. Generalized linear models
 ### 10.2.1. Meet the family
 ### 10.2.2. Linking linear models to distributions
-```{r}
-
-```
-
+### 10.2.3. Omitted variable bias again
+### 10.2.4. Absolute and relative differences
+## 10.3. Maximum entropy priors
