@@ -833,6 +833,93 @@ exp(a1)/(exp(a1)+exp(a2))
 ## 11.4. Censoring and survival
 #### R code 11.64
 ```{r}
+x2 <- replicate( 1e5 , min(runif( 2 , 1 , 100 )) )
+x5 <- replicate( 1e5 , min(runif( 5 , 1 , 100 )) )
+```
 
+#### R code 11.65
+```{r}
+N <- 10
+M <- 2
+x <- replicate( 1e5 , sort(runif(N,1,100))[M] )
+```
+
+### 11.4.1. Simulated cats
+### 11.4.2. Actual cats
+#### R code 11.66
+```{r}
+library(rethinking)
+data(AustinCats)
+d <- AustinCats
+d$adopt <- ifelse(d$out_event == "Adoption" , 1L , 0L)
+dat <- list(
+  days_to_event = as.numeric(d$days_to_event),
+  color_id = ifelse(d$color == "Black" , 1L , 2L) ,
+  adopted = d$adopt
+)
+m11.15 <- ulam(
+  alist(
+    days_to_event | adopted == 1 ~ exponential(lambda),
+    days_to_event | adopted == 0 ~ custom(exponential_lccdf(!Y |
+                                                              lambda)),
+    lambda <- 1.0 / mu,
+    log(mu) <- a[color_id],
+    a[color_id] ~ normal(0, 1)
+  ),
+  data = dat ,
+  chains = 4 ,
+  cores = 4
+)
+
+precis(m11.15 , 2)
+```
+
+#### R code 11.67
+```{r}
+post <- extract.samples( m11.15 )
+post$D <- exp(post$a)
+precis( post , 2 )
+```
+
+```{r}
+stancode(m11.15)
+```
+
+#### R code 11.68
+```{r, eval=F}
+model{
+  vector[22356] lambda
+  
+  b ~ normal(0 , 1)
+  
+  a ~ normal(0 , 1)
+  
+  for (i in 1:22356) {
+    lambda[i] = a + b * black[i]
+    
+    lambda[i] = exp(lambda[i])
+    
+  }
+  for (i in 1:22356)
+    if (adopted[i] == 0)
+      target+ = exponential_lccdf(days_to_event[i] | lambda[i])
+  
+  for (i in 1:22356)
+    if (adopted[i] == 1)
+      days_to_event[i] ~ exponential(lambda[i])
+  
+}
+```
+
+#### R code 11.69
+```{r,eval=F}
+for (i in 1:22356) {
+  if (adopted[i] == 0)
+    target+ = -lambda[i] * days_to_event[i]
+    
+    if (adopted[i] == 1)
+      target+ = log(lambda[i]) - lambda[i] * days_to_event[i]
+      
+}
 ```
 

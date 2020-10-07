@@ -1,0 +1,21 @@
+---
+title: "Notes"
+author: "John D."
+date: "08_31_2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rethinking)
+library(tidyverse)
+```
+
+# 
