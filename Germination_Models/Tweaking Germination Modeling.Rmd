@@ -1,0 +1,814 @@
+---
+title: "Tweaking Germination Models"
+author: "John D."
+date: "10_14_2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+     
+
+```{r}
+library(rethinking)
+library(brms)
+library(tidyverse)
+```
+
+```{r}
+germ <- read_csv("light_round1_tall.csv") %>%
+  filter(wps == 0) %>%
+  select(pops, temps, total_seeds, germ, day, cumulative_germ)
+germ
+```
+
+
+Convert to one event per row:
+```{r}
+one_per_row <- function(df) {
+  total_seed <- max(df$total_seeds, sum(df$germ))
+  newdata <- tibble(id=1:total_seed, germ=0, day=max(df$day))
+  df <- df %>% filter(germ>0)
+  count <- 1
+  if (nrow(df) > 0) {
+    for (i in 1:nrow(df)) { # we look at each row of the df where germination occured
+      for (j in 1:df$germ[i]) { # now update the newdata to reflect the germiantion of each seed
+        newdata$germ[count] <- 1
+        newdata$day[count]=df$day[i]
+        count <- count+1 # count keeps track of which individual we are at in the new data
+      } # for j
+    } # for i
+  } # if 
+  return(newdata)
+}
+
+germone <- germ %>% group_by(pops, temps) %>%
+  select(-cumulative_germ) %>% # not needed in this encoding (I think...in any case would need to be recalculated)
+  nest() %>%
+  mutate(newdata=map(data, one_per_row)) %>%
+  select(-data) %>%
+  unnest(newdata)
+
+germone
+```
+
+## Filter to STDI only
+```{r}
+germ.stdi <- germone %>% filter(pops=="STDI") %>% dplyr::select(-pops)
+germ.stdi %>% arrange()
+```
+
+## ZI Gamma from previous script (best model so far)
+
+```{r}
+d <- list(N=nrow(germ.stdi),
+          germ=germ.stdi$germ,
+          temps=as.numeric(as.factor(germ.stdi$temps)),
+          day=germ.stdi$day)
+
+stanmodel1.7a <-
+  "
+data{
+    int<lower=1> N;  // number of observations
+    int germ[N];
+    vector[N] day;
+    int temps[N];
+}
+parameters{
+    real<lower=0> shape; // should set lower bound
+    vector[8] a; // alpha for the gamma curve, one for each temp
+    vector[8] ap; // alpha for the proportion dormant, one for each temp
+}
+model{
+    vector[N] p;
+    vector[N] mu;
+    a ~ normal( 0 , .5 ); //narrow priors to overcome divergent transitions
+    ap ~ normal( 0, 1.5 ); 
+    shape ~ exponential(.5); 
+    for (i in 1:N) {
+        p[i] = ap[temps[i]];
+        p[i] = inv_logit(p[i]);
+    }
+    for ( i in 1:N ) {
+        mu[i] = a[temps[i]];
+         // apply the inverse link function
+        mu[i] = shape * exp(-(mu[i]));
+    }
+    for ( i in 1:N ) 
+       if ( germ[i] == 0 ) target += log_mix(p[i], 0, gamma_lccdf(day[i] | shape, mu[i]));
+    for ( i in 1:N ) 
+       if ( germ[i] == 1 ) target += log1m(p[i]) + gamma_lpdf(day[i] | shape, mu[i]);
+    for ( i in 1:N ) 
+       if ( germ[i] == 1 ) day[i] ~ gamma( shape, mu[i] );
+}
+"
+m1.7a <- stan(model_code=stanmodel1.7a, data=d, chains=4, cores=4, control=list(adapt_delta=.99))
+``` 
+
+
+```{r}
+precis(m1.7a, depth = 2)
+```
+
+
+```{r}
+post <- as.data.frame(m1.7a)
+
+post_logavgdays <- post %>% select(shape, starts_with("a["
+)) # these are the shape and the log(mean(avg time to germinate))
+mu_rate <- post_logavgdays %>% 
+  mutate(across(-shape, ~ shape*exp(-(.))) ) %>%
+  summarize(across(everything(), mean)) %>% select(-shape) # posterior mean
+mu_rate
+mu_shape <- mean(post$shape)
+
+post_logitp <- post %>% select(starts_with("ap")) #logit p dormant
+mu_p <- post_logitp %>%
+  summarize_all(mean) %>%
+  mutate_all(inv_logit)
+mu_p
+
+posterior_coef <- tibble(shape=mu_shape, temps=as.factor(unique(germ.stdi$temps)),
+                         rate=t(mu_rate),
+                         p=t(mu_p))
+
+post_plot1.7a <- expand_grid(posterior_coef, day=1:28) %>%
+  mutate(prop_germ=pgamma(day, shape=shape, rate=rate) * (1-p))
+
+stdi.plot <- germ %>% filter(pops=="STDI") %>% 
+  select(day, temps, cumulative_germ, total_seeds) %>%
+  mutate(temps=as.factor(temps),
+         prop_germ=cumulative_germ/total_seeds)
+
+post_plot1.7a %>% 
+  ggplot(aes(x=day,y=prop_germ,color=temps,group=temps)) +
+  geom_line() +
+  geom_point(data=stdi.plot)
+
+```
+
+
+## modify ZI Gamma 
+
+totally separate rate and shape
+
+```{r}
+d <- list(N=nrow(germ.stdi),
+          germ=germ.stdi$germ,
+          temps=as.numeric(as.factor(germ.stdi$temps)),
+          day=germ.stdi$day)
+
+stanmodel1.8 <-
+  "
+data{
+    int<lower=1> N;  // number of observations
+    int germ[N];
+    vector[N] day;
+    int temps[N];
+}
+parameters{
+    vector[8] ar; // alpha for rate the gamma curve, one for each temp
+    vector[8] as; // alpha for shape for the gamma curve, one for each temp
+    vector[8] ap; // alpha for the proportion dormant, one for each temp
+}
+model{
+    vector[N] p;
+    vector[N] rate;
+    vector[N] shape;
+    ar ~ normal( 0 , .5 ); 
+    as ~ normal( 0 , .5 ); 
+    ap ~ normal( 0, 2 ); 
+    for (i in 1:N) {
+        p[i] = ap[temps[i]];
+        p[i] = inv_logit(p[i]);
+    }
+    for ( i in 1:N ) {
+        rate[i] = ar[temps[i]];
+        shape[i] = as[temps[i]];
+         // apply the inverse link function
+        rate[i] = exp(-(rate[i]));
+        shape[i] = exp(-(shape[i]));
+    }
+    for ( i in 1:N ) 
+       if ( germ[i] == 0 ) target += log_mix(p[i], 0, gamma_lccdf(day[i] | shape[i], rate[i]));
+    for ( i in 1:N ) 
+       if ( germ[i] == 1 ) target += log1m(p[i]) + gamma_lpdf(day[i] | shape[i], rate[i]);
+    for ( i in 1:N ) 
+       if ( germ[i] == 1 ) day[i] ~ gamma( shape[i], rate[i] );
+}
+"
+m1.8 <- stan(model_code=stanmodel1.8, data=d, chains=4, cores=4, control=list(adapt_delta=.99))
+``` 
+
+
+```{r}
+precis(m1.8, depth = 2)
+```
+
+
+```{r}
+post <- as.data.frame(m1.8)
+
+post_shape <- post %>% select(starts_with("as["))
+mu_shape <- post_shape %>% 
+  mutate(across(everything(), ~ exp(-(.))) ) %>%
+  summarize(across(everything(), mean)) 
+mu_shape
+
+post_rate <- post %>% select(starts_with("as["))
+mu_rate <- post_rate %>% 
+  mutate(across(everything(), ~ exp(-(.))) ) %>%
+  summarize(across(everything(), mean)) 
+mu_rate
+
+post_logitp <- post %>% select(starts_with("ap")) #logit p dormant
+mu_p <- post_logitp %>%
+  summarize_all(mean) %>%
+  mutate_all(inv_logit)
+mu_p
+
+posterior_coef <- tibble(shape=t(mu_shape), temps=as.factor(unique(germ.stdi$temps)),
+                         rate=t(mu_rate),
+                         p=t(mu_p))
+
+post_plot1.8 <- expand_grid(posterior_coef, day=1:28) %>%
+  mutate(prop_germ=pgamma(day, shape=shape, rate=rate) * (1-p))
+
+stdi.plot <- germ %>% filter(pops=="STDI") %>% 
+  select(day, temps, cumulative_germ, total_seeds) %>%
+  mutate(temps=as.factor(temps),
+         prop_germ=cumulative_germ/total_seeds)
+
+post_plot1.8 %>% 
+  ggplot(aes(x=day,y=prop_germ,color=temps,group=temps)) +
+  geom_line() +
+  geom_point(data=stdi.plot)
+
+```
+
+## Temperature as continuous predictor (quadratic)
+
+prior predictions:
+
+```{r}
+nprior <- 100
+days <- 1:28
+
+temps <- c(-1.5, 0, 1.5) # scaled and centered
+
+priors <- tibble(
+  id=1:nprior,
+  a = rnorm(nprior, 0 , 1 ),
+  ap = rnorm(nprior, 0, 2),
+  shape = rexp(nprior, .25),
+  bg = rnorm(nprior, 0, .5),
+  bgq = rnorm(nprior, 0, 1),
+  bp = rnorm(nprior, 0, .5),
+  bpq = rnorm(nprior, 0, 2))
+
+predictions <- priors %>% 
+  nest(priors=-id) %>% 
+  expand_grid(temps) %>%
+  mutate(params=map2(temps, priors, function(temp, prior) {
+    p <- prior$ap + prior$bp*temp + prior$bpq*temp^2
+    p <- inv_logit(p)
+    mu <- prior$a + prior$bg*temp + prior$bgq*temp^2
+    mu <- prior$shape*exp(-mu)
+    tibble(p=p, mu=mu, shape=prior$shape)
+    }
+  )
+  )
+ 
+predictions <- predictions %>%
+  select(id, temps, params) %>%
+  mutate(prop_germ=map(params, ~ pgamma(days, shape=.$shape, rate=.$mu) * (1-.$p)))
+
+predictions <- predictions %>% 
+  select(id, temps,  prop_germ) %>% 
+  unnest(prop_germ) %>% 
+  mutate(day=rep(days, length.out=nrow(.)))
+
+predictions %>% ggplot(aes(x=day, y=prop_germ, group=id)) +
+  geom_line(alpha=.1) + facet_grid(~temps)
+
+```
+
+
+
+
+```{r}
+d <- list(N=nrow(germ.stdi),
+          germ=germ.stdi$germ,
+          temps=as.vector(scale(germ.stdi$temps)),
+          day=germ.stdi$day)
+
+stanmodel2 <-
+  "
+data{
+    int<lower=1> N;  // number of observations
+    int germ[N];
+    vector[N] day;
+    real temps[N];
+}
+parameters{
+    real<lower=0> shape; // should set lower bound
+    real a; // alpha for the gamma curve, one for each temp
+    real ap; // alpha for the proportion dormant, one for each temp
+    real bg; // beta for temp effect on gamma curve
+    real bgq; // beta for quadratic temp effect on gamma curbe
+    real bp; // beta for temp effect on proportion dormant
+    real bpq; // beta for quadratic temp effect on proportion dormant
+}
+model{
+    vector[N] p;
+    vector[N] mu;
+    a ~ normal( 0 , 1 ); //narrow priors to overcome divergent transitions
+    ap ~ normal( 0, 2 ); 
+    shape ~ exponential(.25);
+    bg ~ normal(0, .5);
+    bgq ~ normal(0, 1);
+    bp ~ normal(0, .5);
+    bpq ~ normal(0, 2);
+    for (i in 1:N) {
+        p[i] = ap + bp*temps[i] + bpq*(temps[i]^2);
+        p[i] = inv_logit(p[i]);
+    }
+    for ( i in 1:N ) {
+        mu[i] = a + bg*temps[i] + bgq*(temps[i]^2);
+         // apply the inverse link function
+        mu[i] = shape * exp(-(mu[i]));
+    }
+    for ( i in 1:N ) 
+       if ( germ[i] == 0 ) target += log_mix(p[i], 0, gamma_lccdf(day[i] | shape, mu[i]));
+    for ( i in 1:N ) 
+       if ( germ[i] == 1 ) target += log1m(p[i]) + gamma_lpdf(day[i] | shape, mu[i]);
+    for ( i in 1:N ) 
+       if ( germ[i] == 1 ) day[i] ~ gamma( shape, mu[i] );
+}
+"
+m2 <- stan(model_code=stanmodel2, data=d, chains=4, cores=4, control=list(adapt_delta=.99))
+``` 
+
+
+```{r}
+precis(m2)
+```
+
+
+```{r}
+post <- as.data.frame(m2)
+
+predict_post <- function(temp, post, days=1:28) {
+    p <- post$ap + post$bp*temp + post$bpq*temp^2
+    p <- inv_logit(p)
+    mu <- post$a + post$bg*temp + post$bgq*temp^2
+    mu <- post$shape*exp(-mu)
+    postparams <- tibble(id = 1:length(p), p=p, mu=mu, shape=post$shape) %>%
+      nest(params=-id)
+    prop_germ <- postparams %>% 
+      mutate(prop_germ=map(params, ~ pgamma(days, shape=.$shape, rate=.$mu) * (1-.$p))) %>% 
+      select(-params) %>% 
+      unnest(prop_germ) %>%
+      mutate(day=rep(days, length.out=nrow(.)))
+}
+
+post_predictions <- tibble(realtemp = unique(germ.stdi$temps)) %>%
+  mutate(scaletemp = scale(realtemp)) %>%
+  mutate(predictions = map(scaletemp, predict_post, post)) %>% unnest(predictions)
+
+post_predictions_summary <- post_predictions %>%
+  group_by(realtemp, day) %>%
+  summarize(low89=HPDI(prop_germ)[1], 
+            high90=HPDI(prop_germ)[2],
+            prop_germ=mean(prop_germ)) %>%
+  mutate(temps=as.factor(realtemp))
+
+stdi.plot <- germ %>% filter(pops=="STDI") %>% 
+  select(day, temps, cumulative_germ, total_seeds) %>%
+  mutate(temps=as.factor(temps),
+         prop_germ=cumulative_germ/total_seeds)
+
+post_predictions_summary %>% 
+  ggplot(aes(x=day,y=prop_germ,color=temps,group=temps)) +
+  geom_line() +
+  geom_point(data=stdi.plot)
+
+```
+
+Not sure if there is some bug in my code?
+
+But seems not
+```{r}
+inv_logit(-.58+-.204*-.02+(-0.204)^2*2.19)
+```
+
+centering may be making it hard for the quadratic to work
+
+### scaled but not centered
+
+prior predictions:
+
+```{r}
+nprior <- 100
+days <- 1:28
+scaledtemp <- scale(unique(germ.stdi$temps), center=FALSE)
+temps <- c(min(scaledtemp), mean(scaledtemp), max(scaledtemp)) # scaled and centered
+
+priors <- tibble(
+  id=1:nprior,
+  a = rnorm(nprior, 0 , 2 ),
+  ap = rnorm(nprior, 0, 2),
+  shape = rexp(nprior, .25),
+  bg = rnorm(nprior, 0, 3),
+  bgq = rnorm(nprior, 0, 2),
+  bp = rnorm(nprior, 0, 3),
+  bpq = rnorm(nprior, 0, 2))
+
+predictions <- priors %>% 
+  nest(priors=-id) %>% 
+  expand_grid(temps) %>%
+  mutate(params=map2(temps, priors, function(temp, prior) {
+    p <- prior$ap + prior$bp*temp + prior$bpq*temp^2
+    p <- inv_logit(p)
+    mu <- prior$a + prior$bg*temp + prior$bgq*temp^2
+    mu <- prior$shape*exp(-mu)
+    tibble(p=p, mu=mu, shape=prior$shape)
+    }
+  )
+  )
+ 
+predictions <- predictions %>%
+  select(id, temps, params) %>%
+  mutate(prop_germ=map(params, ~ pgamma(days, shape=.$shape, rate=.$mu) * (1-.$p)))
+
+predictions <- predictions %>% 
+  select(id, temps,  prop_germ) %>% 
+  unnest(prop_germ) %>% 
+  mutate(day=rep(days, length.out=nrow(.)))
+
+predictions %>% ggplot(aes(x=day, y=prop_germ, group=id)) +
+  geom_line(alpha=.1) + facet_grid(~temps)
+
+```
+
+
+
+
+```{r}
+d <- list(N=nrow(germ.stdi),
+          germ=germ.stdi$germ,
+          temps=as.vector(scale(germ.stdi$temps, center=FALSE)),
+          day=germ.stdi$day)
+
+stanmodel2.1 <-
+  "
+data{
+    int<lower=1> N;  // number of observations
+    int germ[N];
+    vector[N] day;
+    real temps[N];
+}
+parameters{
+    real<lower=0> shape; // should set lower bound
+    real a; // alpha for the gamma curve, one for each temp
+    real ap; // alpha for the proportion dormant, one for each temp
+    real bg; // beta for temp effect on gamma curve
+    real bgq; // beta for quadratic temp effect on gamma curbe
+    real bp; // beta for temp effect on proportion dormant
+    real bpq; // beta for quadratic temp effect on proportion dormant
+}
+model{
+    vector[N] p;
+    vector[N] mu;
+    a ~ normal( 0 , 5 ); //narrow priors to overcome divergent transitions
+    ap ~ normal( 0, 5 ); 
+    shape ~ exponential(.25);
+    bg ~ normal(0, 10);
+    bgq ~ normal(0, 5);
+    bp ~ normal(0, 10);
+    bpq ~ normal(0, 5);
+    for (i in 1:N) {
+        p[i] = ap + bp*temps[i] + bpq*(temps[i]^2);
+        p[i] = inv_logit(p[i]);
+    }
+    for ( i in 1:N ) {
+        mu[i] = a + bg*temps[i] + bgq*(temps[i]^2);
+         // apply the inverse link function
+        mu[i] = shape * exp(-(mu[i]));
+    }
+    for ( i in 1:N ) 
+       if ( germ[i] == 0 ) target += log_mix(p[i], 0, gamma_lccdf(day[i] | shape, mu[i]));
+    for ( i in 1:N ) 
+       if ( germ[i] == 1 ) target += log1m(p[i]) + gamma_lpdf(day[i] | shape, mu[i]);
+    for ( i in 1:N ) 
+       if ( germ[i] == 1 ) day[i] ~ gamma( shape, mu[i] );
+}
+"
+m2.1 <- stan(model_code=stanmodel2.1, data=d, chains=4, cores=4)
+``` 
+
+
+```{r}
+precis(m2.1)
+```
+
+
+```{r}
+post <- as.data.frame(m2.1)
+
+predict_post <- function(temp, post, days=1:28) {
+    p <- post$ap + post$bp*temp + post$bpq*temp^2
+    p <- inv_logit(p)
+    mu <- post$a + post$bg*temp + post$bgq*temp^2
+    mu <- post$shape*exp(-mu)
+    postparams <- tibble(id = 1:length(p), p=p, mu=mu, shape=post$shape) %>%
+      nest(params=-id)
+    prop_germ <- postparams %>% 
+      mutate(prop_germ=map(params, ~ pgamma(days, shape=.$shape, rate=.$mu) * (1-.$p))) %>% 
+      select(-params) %>% 
+      unnest(prop_germ) %>%
+      mutate(day=rep(days, length.out=nrow(.)))
+}
+
+post_predictions <- tibble(realtemp = unique(germ.stdi$temps)) %>%
+  mutate(scaletemp = scale(realtemp, center=FALSE)) %>%
+  mutate(predictions = map(scaletemp, predict_post, post)) %>% unnest(predictions)
+
+post_predictions_summary <- post_predictions %>%
+  group_by(realtemp, day) %>%
+  summarize(low89=HPDI(prop_germ)[1], 
+            high90=HPDI(prop_germ)[2],
+            prop_germ=mean(prop_germ)) %>%
+  mutate(temps=as.factor(realtemp))
+
+stdi.plot <- germ %>% filter(pops=="STDI") %>% 
+  select(day, temps, cumulative_germ, total_seeds) %>%
+  mutate(temps=as.factor(temps),
+         prop_germ=cumulative_germ/total_seeds)
+
+post_predictions_summary %>% 
+  ggplot(aes(x=day,y=prop_germ,color=temps,group=temps)) +
+  geom_line() +
+  geom_point(data=stdi.plot)
+
+```
+
+## Temperature as continuous predictor (Rongkui)
+
+### prior predictions
+
+```{r}
+nprior <- 100
+days <- 1:28
+
+temps <- c(5, 20, 40)
+
+priors <- tibble(
+  id=1:nprior,
+  a = rnorm(nprior, 0 , 2 ),
+  ap = rnorm(nprior, 0, 2),
+  shape = rexp(nprior, .25),
+  sensg = rnorm(nprior, 0, 2),
+  sensp = rnorm(nprior, 0, 2))
+
+predictions <- priors %>% 
+  nest(priors=-id) %>% 
+  expand_grid(temps) %>%
+  mutate(params=map2(temps, priors, function(temp, prior) {
+    ttg <- exp(-(temp-20)^2 / prior$sensg)
+    ttp <- exp(-(temp-20)^2 / prior$sensp)
+    p <- prior$ap + ttp
+    p <- inv_logit(p)
+    mu <- prior$a + ttg
+    mu <- prior$shape*exp(-mu)
+    tibble(p=p, mu=mu, shape=prior$shape)
+    }
+  )
+  )
+ 
+predictions <- predictions %>%
+  select(id, temps, params) %>%
+  mutate(prop_germ=map(params, ~ pgamma(days, shape=.$shape, rate=.$mu) * (1-.$p)))
+
+predictions <- predictions %>% 
+  select(id, temps,  prop_germ) %>% 
+  unnest(prop_germ) %>% 
+  mutate(day=rep(days, length.out=nrow(.)))
+
+predictions %>% ggplot(aes(x=day, y=prop_germ, group=id)) +
+  geom_line(alpha=.1) + facet_grid(~temps)
+
+```
+
+```{r}
+d <- list(N=nrow(germ.stdi),
+          germ=germ.stdi$germ,
+          temps=germ.stdi$temps,
+          day=germ.stdi$day,
+          opttemp=20)
+
+stanmodel3 <-
+  "
+data{
+    int<lower=1> N;  // number of observations
+    int germ[N];
+    vector[N] day;
+    real temps[N];
+    real opttemp;
+}
+parameters{
+    real<lower=0> shape; // should set lower bound
+    real ag; // alpha for the gamma curve
+    real ap; // alpha for the proportion dormant
+    real sensg; //for temp equation in gamma
+    real sensp; //for temp equation in proportion
+}
+model{
+    vector[N] p;
+    vector[N] mu;
+    vector[N] ttp;
+    vector[N] ttg;
+    ag ~ normal( 0 , .5); 
+    ap ~ normal( 0, 1); 
+    shape ~ exponential(.5);
+    sensg ~ normal(0, 1);
+    sensp ~ normal(0, 1);
+    for (i in 1:N) {
+        ttp[i] = exp(-(((temps[i]-opttemp)^2) / sensp)); // close to 1 at optimum; 
+        p[i] = ap + ttp[i];
+        p[i] = inv_logit(p[i]);
+    }
+    for ( i in 1:N ) {
+        ttg[i] = exp(-(((temps[i]-opttemp)^2) / sensg)); // close to 1 at optimum; 
+        mu[i] = ag + ttg[i];
+         // apply the inverse link function
+        mu[i] = shape * exp(-(mu[i]));
+    }
+    for ( i in 1:N ) 
+       if ( germ[i] == 0 ) target += log_mix(p[i], 0, gamma_lccdf(day[i] | shape, mu[i]));
+    for ( i in 1:N ) 
+       if ( germ[i] == 1 ) target += log1m(p[i]) + gamma_lpdf(day[i] | shape, mu[i]);
+    for ( i in 1:N ) 
+       if ( germ[i] == 1 ) day[i] ~ gamma( shape, mu[i] );
+}
+"
+m3 <- stan(model_code=stanmodel3, data=d, chains=4, cores=4, control = list(adapt_delta = 0.95))
+``` 
+
+
+```{r}
+precis(m3)
+```
+
+```{r}
+pairs(m3)
+```
+
+
+
+```{r}
+post <- as.data.frame(m3)
+
+predict_post <- function(temp, post, days=1:28) {
+    p <- post$ap + exp(-(((temp-20)^2) / post$sensp))
+    p <- inv_logit(p)
+    
+    mu <- post$ag + exp(-(((temp-20)^2) / post$sensg))
+    mu <- post$shape*exp(-mu)
+    postparams <- tibble(id = 1:length(p), p=p, mu=mu, shape=post$shape) %>%
+      nest(params=-id)
+    prop_germ <- postparams %>% 
+      mutate(prop_germ=map(params, ~ pgamma(days, shape=.$shape, rate=.$mu) * (1-.$p))) %>% 
+      select(-params) %>% 
+      unnest(prop_germ) %>%
+      mutate(day=rep(days, length.out=nrow(.)))
+}
+
+post_predictions <- tibble(temp = unique(germ.stdi$temps)) %>%
+  mutate(predictions = map(temp, predict_post, post)) %>% unnest(predictions)
+
+post_predictions_summary <- post_predictions %>%
+  group_by(temp, day) %>%
+  summarize(low89=HPDI(prop_germ)[1], 
+            high90=HPDI(prop_germ)[2],
+            prop_germ=mean(prop_germ)) %>%
+  mutate(temps=as.character(temp))
+
+stdi.plot <- germ %>% filter(pops=="STDI") %>% 
+  select(day, temps, cumulative_germ, total_seeds) %>%
+  mutate(temps=as.factor(temps),
+         prop_germ=cumulative_germ/total_seeds)
+
+post_predictions_summary %>% 
+  ggplot(aes(x=day,y=prop_germ,color=temps,group=temps)) +
+  geom_line() + facet_wrap(~temps) +
+  geom_point(data=stdi.plot)
+
+```
+
+
+## ZI Gamma multi pops
+
+additive, no interactions
+```{r}
+d <- list(N=nrow(germone),
+          Npop=length(unique(germone$pops)),
+          germ=germone$germ,
+          temps=as.numeric(as.factor(germone$temps)),
+          pops=as.numeric(as.factor(germone$pops)),
+          day=germone$day)
+
+stanmodel4 <-
+  "
+data{
+    int<lower=1> N;  // number of observations
+    int<lower=1> Npop;  // number of populations
+    int germ[N];
+    vector[N] day;
+    int temps[N];
+    int pops[N];
+}
+parameters{
+    real<lower=0> shape; // should set lower bound
+    vector[8] ar; // alpha for the gamma curve, one for each temp
+    vector[8] ap; // alpha for the proportion dormant, one for each temp
+    vector[Npop] br; //beta for the gamma curve, one for each pop
+    vector[Npop] bp; //beta for the proportin dormant, one for each pop]
+}
+model{
+    vector[N] p;
+    vector[N] mu;
+    ar ~ normal( 0 , 1 ); //narrow priors to overcome divergent transitions
+    ap ~ normal( 0, 1.5 ); 
+    br ~ normal(0 , 1);
+    bp ~ normal(0, 1);
+    shape ~ exponential(.5); 
+    for (i in 1:N) {
+        p[i] = ap[temps[i]] + bp[pops[i]];
+        p[i] = inv_logit(p[i]);
+    }
+    for ( i in 1:N ) {
+        mu[i] = ar[temps[i]] + br[pops[i]];
+         // apply the inverse link function
+        mu[i] = shape * exp(-(mu[i]));
+    }
+    for ( i in 1:N ) 
+       if ( germ[i] == 0 ) target += log_mix(p[i], 0, gamma_lccdf(day[i] | shape, mu[i]));
+    for ( i in 1:N ) 
+       if ( germ[i] == 1 ) target += log1m(p[i]) + gamma_lpdf(day[i] | shape, mu[i]);
+    for ( i in 1:N ) 
+       if ( germ[i] == 1 ) day[i] ~ gamma( shape, mu[i] );
+}
+"
+m4 <- stan(model_code=stanmodel4, data=d, chains=4, cores=4, control=list(adapt_delta=.99))
+``` 
+
+
+```{r}
+precis(m4, depth = 2)
+```
+
+```{r}
+post <- as.data.frame(m4) %>% select(-"lp__")
+
+getrate <- function(temp, pop, thispost=post) {
+  alpha <- sym( str_c("ar[", temp, "]"))
+  beta <- sym(str_c("br[", pop, "]"))
+  thispost %>% mutate(r=shape*exp(-(!!alpha+!!beta))) %>% pull(r) %>% mean()
+}
+
+getp <- function(temp, pop, thispost=post) {
+  alpha <- sym( str_c("ap[", temp, "]"))
+  beta <- sym(str_c("bp[", pop, "]"))
+  thispost %>% mutate(p=inv_logit(!!alpha+!!beta)) %>% pull(p) %>% mean
+}
+
+pred <- expand_grid(temps=1:length(unique(germone$temps)), pops=1:length(unique(germone$pops)))
+
+pred <- pred %>% 
+  mutate(rate=map2_dbl(temps, pops, getrate),
+                        p=map2_dbl(temps, pops, getp),
+                        shape=mean(post$shape))
+
+plot_pred <- expand_grid(temps=pred$temps, pops=pred$pops, day=1:28) %>% 
+  left_join(pred) %>%
+  mutate(prop_germ=pgamma(day, shape=shape, rate=rate)*(1-p),
+         temps=as.character(unique(germone$temps))[temps],
+         pops=unique(germone$pops)[pops])
+
+germ.plot.data <- germ  %>% 
+  select(day, pops, temps, cumulative_germ, total_seeds) %>%
+  mutate(temps=as.character(temps),
+         prop_germ=cumulative_germ/total_seeds)
+
+plot_pred %>% 
+  ggplot(aes(x=day,y=prop_germ,color=temps,group=temps)) +
+  geom_line() +
+  geom_point(data=germ.plot.data) +
+  facet_wrap(~pops)
+```
