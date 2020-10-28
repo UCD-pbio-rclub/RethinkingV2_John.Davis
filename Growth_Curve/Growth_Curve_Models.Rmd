@@ -1,0 +1,346 @@
+---
+title: "Growth Curve Models"
+author: "John D."
+date: "10_28_2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+     
+
+```{r}
+library(rethinking)
+library(brms)
+library(tidyverse)
+```
+
+Work on the attached data set from Maloof (2001).  It is a series of growth response curves, either in response to different light or hormone treatments.  The question you want to answer is whether there are differences in response slopes between the genotypes.  Note that the responses tend to be ~ log-linear with respect to the treatment.  I would recommend picking one of the treatments that approximates (log) linear such as blue, red, or GA.  You may want to truncate the data to only retain the linear part. But if you want to get fancy don't truncate and/or try some of the more challenging treatments (e.g. white).
+
+## Starting with red light
+```{r}
+red <- read_csv("Red.csv")
+head(red)
+```
+```{r}
+ggplot(data = red, aes(x = length, color = as.factor(concentration))) +
+  geom_density() +
+  facet_wrap(~genotype)
+```
+
+```{r}
+summary(standardize(log(red$length)))
+```
+
+
+```{r}
+red.small <-  red[complete.cases(red$length), ]
+dat_list <- list(
+  L = standardize(log(red.small$length)),
+  G = as.factor(red.small$genotype),
+  C = red.small$concentration
+)
+
+model_1 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a[G] + bC[G]*C,
+    a[G] ~ dnorm(0, 1),
+    bC[G] ~ dnorm(0, 1),
+    sigma ~ dexp(1)
+  ) ,
+  data = dat_list,
+  chains = 4 ,
+  cores = 4
+)
+precis(model_1, depth = 2)
+```
+```{r}
+traceplot(model_1)
+```
+
+```{r}
+trankplot(model_1)
+```
+
+```{r}
+pairs(model_1)
+```
+# Plotting
+```{r}
+red.aves <- red.small %>%
+  mutate(length = standardize(log(length))) %>%
+  group_by(genotype, concentration) %>%
+  mutate(ave_length = mean(length)) %>%
+  ungroup() %>%
+  select(-length) %>%
+  unique() %>%
+  arrange(genotype)
+
+pred_data <- data.frame(G = rep(as.factor(unique(red$genotype)), each = 8),
+                        C = rep(unique(red$concentration), 6))
+
+mu <- link(model_1, data=pred_data,)
+mu.mean <- apply(mu , 2, mean)
+pred_data$mu <- mu.mean
+mu.PI <- apply(mu, 2, PI, prob=0.89)
+pred_data$Low <- mu.PI[1,]
+pred_data$High <- mu.PI[2,]
+pred_data$Original <- red.aves$ave_length
+
+
+ggplot(data = pred_data,
+       aes(x = C, y = mu, color = as.factor(G))) +
+  geom_line(lty = 1) +
+  geom_line(aes(x = C, y = Original), lty = 2)
+```
+
+## No standardization
+```{r}
+dat_list <- list(
+  L = red.small$length,
+  G = as.factor(red.small$genotype),
+  C_1 = red.small$concentration,
+  C_2 = red.small$concentration^2
+)
+
+model_2 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a[G] + bC1[G]*C_1 + bC2[G]*C_2,
+    a[G] ~ dnorm(8, 3),
+    bC1[G] ~ dnorm(0, 4),
+    bC2[G] ~ dnorm(0, 4),
+    sigma ~ dexp(1)
+  ) ,
+  data = dat_list,
+  chains = 4 ,
+  cores = 4
+)
+precis(model_2, depth = 2)
+```
+
+```{r}
+red.aves <- red.small %>%
+  group_by(genotype, concentration) %>%
+  mutate(ave_length = mean(length)) %>%
+  ungroup() %>%
+  select(-length) %>%
+  unique() %>%
+  arrange(genotype)
+
+pred_data <- data.frame(G = rep(as.factor(unique(red$genotype)), each = 8),
+                        C_1 = rep(unique(red$concentration), 6),
+                        C_2 = rep(unique(red$concentration^2), 6))
+
+mu <- link(model_2, data=pred_data,)
+mu.mean <- apply(mu , 2, mean)
+pred_data$mu <- mu.mean
+mu.PI <- apply(mu, 2, PI, prob=0.89)
+pred_data$Low <- mu.PI[1,]
+pred_data$High <- mu.PI[2,]
+pred_data$Original <- red.aves$ave_length
+
+
+ggplot(data = pred_data,
+       aes(x = C_1, y = mu, color = as.factor(G))) +
+  geom_line(lty = 1) +
+  geom_line(aes(x = C_1, y = Original), lty = 2)
+```
+
+## Back to basics, focus on only one genotype
+```{r}
+red.Ber <- red.small %>%
+  filter(genotype == "Ber-0")
+
+dat_list <- list(
+  C = red.Ber$concentration,
+  L = red.Ber$length
+)
+summary(red.Ber)
+```
+
+```{r}
+model_3 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a + bC*C,
+    a ~ dnorm(8,4),
+    bC ~ dlnorm(0,1),
+    sigma ~ dexp(1)
+  ), data = dat_list, cores = 4, chains = 4
+)
+
+precis(model_3)
+```
+
+```{r}
+red.aves <- red.Ber %>%
+  group_by(genotype, concentration) %>%
+  mutate(length = mean(length)) %>%
+  ungroup() %>%
+  unique() %>%
+  arrange(genotype)
+
+
+plt <- ggplot(data = red.aves, aes(x = concentration, y = length)) +
+  geom_line(lty = 1)
+plt
+
+
+
+
+pred_data <- data.frame(C = red.aves$concentration)
+
+mu <- link(model_3, data=pred_data,)
+mu.mean <- apply(mu , 2, mean)
+red.aves$predicted <- mu.mean
+
+plt <- plt + geom_line(data = red.aves, aes(x = concentration, y = predicted), lty = 2)
+plt
+```
+
+```{r}
+model_4 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a - bC*C,
+    a ~ dnorm(8,4),
+    bC ~ dlnorm(0,1),
+    sigma ~ dexp(1)
+  ), data = dat_list, cores = 4, chains = 4
+)
+
+precis(model_4)
+```
+
+```{r}
+red.aves <- red.Ber %>%
+  group_by(genotype, concentration) %>%
+  mutate(length = mean(length)) %>%
+  ungroup() %>%
+  unique() %>%
+  arrange(genotype)
+
+
+plt <- ggplot(data = red.aves, aes(x = concentration, y = length)) +
+  geom_line(lty = 1)
+plt
+
+
+
+
+pred_data <- data.frame(C = red.aves$concentration)
+
+mu <- link(model_4, data=pred_data,)
+mu.mean <- apply(mu , 2, mean)
+red.aves$predicted <- mu.mean
+
+plt <- plt + geom_line(data = red.aves, aes(x = concentration, y = predicted), lty = 2)
+plt
+```
+
+```{r}
+dat_list$C_2 <- red.Ber$concentration^2
+model_5 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a - bC*C - bC_2*C_2,
+    a ~ dnorm(8,4),
+    bC ~ dnorm(0,5),
+    bC_2 ~ dnorm(0,5),
+    sigma ~ dexp(1)
+  ), data = dat_list, cores = 4, chains = 4
+)
+
+precis(model_5)
+```
+
+```{r}
+red.aves <- red.Ber %>%
+  group_by(genotype, concentration) %>%
+  mutate(length = mean(length)) %>%
+  ungroup() %>%
+  unique() %>%
+  arrange(genotype)
+
+
+plt <- ggplot(data = red.aves, aes(x = concentration, y = length)) +
+  geom_line(lty = 1)
+plt
+
+pred_data <- data.frame(C = red.aves$concentration,
+                        C_2 = red.aves$concentration^2)
+
+mu <- link(model_5, data=pred_data,)
+mu.mean <- apply(mu , 2, mean)
+red.aves$predicted <- mu.mean
+
+plt <- plt + geom_line(data = red.aves, aes(x = concentration, y = predicted), lty = 2)
+plt
+```
+
+```{r}
+dat_list$C_2 <- red.Ber$concentration^2
+model_6 <- ulam(
+  alist(
+    L ~ dnorm(mu, sigma),
+    mu <- a - bC*C - bC_2*C_2,
+    a ~ dnorm(8,4),
+    c(bC, bC_2) ~ dexp(2),
+    sigma ~ dexp(1)
+  ), data = dat_list, cores = 4, chains = 4
+)
+
+precis(model_6)
+```
+
+```{r}
+red.aves <- red.Ber %>%
+  group_by(genotype, concentration) %>%
+  mutate(length = mean(length)) %>%
+  ungroup() %>%
+  unique() %>%
+  arrange(genotype)
+
+
+plt <- ggplot(data = red.aves, aes(x = concentration, y = length)) +
+  geom_line(lty = 1)
+plt
+
+pred_data <- data.frame(C = red.aves$concentration,
+                        C_2 = red.aves$concentration^2)
+
+mu <- link(model_6, data=pred_data,)
+mu.mean <- apply(mu , 2, mean)
+red.aves$predicted <- mu.mean
+
+plt <- plt + geom_line(data = red.aves, aes(x = concentration, y = predicted), lty = 2)
+plt
+```
+
+# Try brms
+
+```{r}
+model_7 <- brm(length ~ 0 + concentration,
+               data = red.Ber,
+               cores = 4)
+summary(model_7)
+```
+
+```{r}
+preds <- predict(model_7, newdata = data.frame(concentration = red.aves$concentration))
+
+red.aves$predicted <- preds[,1]
+plt <- ggplot(data = red.aves, aes(x = concentration, y = length)) +
+  geom_line(lty = 1)
+plt
+plt <- plt + geom_line(aes(x = concentration, y = predicted), lty = 2)
+plt
+```
+

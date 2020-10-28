@@ -380,5 +380,4 @@ post_plot1.7c %>%
   ggplot(aes(x=day,y=prop_germ,color=temps,group=temps)) +
   geom_line() +
   geom_point(data=stdi.plot)
-
 ```
