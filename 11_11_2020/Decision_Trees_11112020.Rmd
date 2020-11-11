@@ -1,0 +1,174 @@
+---
+title: "Decision Trees"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ISLR)
+library(tree)
+```
+
+# 8.3 Lab: Decision Trees
+## 8.3.1 Fitting classification trees
+
+```{r}
+library(tree)
+```
+
+```{r}
+library(ISLR)
+attach(Carseats)
+High <- ifelse(Sales <= 8, "No", "Yes")
+```
+
+```{r}
+Carseats <- data.frame(Carseats,High)
+```
+
+```{r}
+tree.carseats <- tree(High~. -Sales, Carseats)
+```
+
+```{r}
+summary(tree.carseats)
+```
+
+```{r}
+plot(tree.carseats)
+text(tree.carseats, pretty = 0)
+```
+
+```{r}
+tree.carseats
+```
+
+```{r}
+set.seed(2)
+train <- sample(1:nrow(Carseats), 200)
+Carseats.test <- Carseats[-train,]
+High.test <- High[-train]
+tree.carseats <- tree(High~.-Sales, Carseats, subset = train)
+tree.pred <- predict(tree.carseats, Carseats.test, type = "class")
+table(tree.pred, High.test)
+(104+50)/200
+```
+
+```{r}
+set.seed(3)
+cv.carseats <- cv.tree(tree.carseats, FUN=prune.misclass)
+names(cv.carseats)
+cv.carseats
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(cv.carseats$size, cv.carseats$dev, type = "b")
+plot(cv.carseats$k, cv.carseats$dev, type ="b")
+```
+
+```{r}
+prune.carseats <- prune.misclass(tree.carseats, best = 9)
+par(mfrow = c(1,1))
+plot(prune.carseats)
+text(prune.carseats, pretty = 0)
+```
+
+```{r}
+tree.pred <- predict(prune.carseats, Carseats.test, type = "class")
+table(tree.pred, High.test)
+(97+58)/200
+```
+
+```{r}
+prune.carseats <- prune.misclass(tree.carseats, best = 15)
+plot(prune.carseats)
+text(prune.carseats, pretty = 0)
+tree.pred <- predict(prune.carseats, Carseats.test, type = "class")
+table(tree.pred, High.test)
+(102+53)/200
+```
+## 8.3.2 Fitting Regression Trees
+
+```{r}
+library(MASS)
+set.seed(1)
+train <- sample(1:nrow(Boston), nrow(Boston)/2)
+tree.boston <- tree(medv~ ., data = Boston, subset = train)
+summary(tree.boston)
+```
+
+```{r}
+plot(tree.boston)
+text(tree.boston, pretty = 0)
+```
+
+```{r}
+cv.boston <- cv.tree(tree.boston)
+plot(cv.boston$size, cv.boston$dev, type = "b")
+```
+
+```{r}
+prune.boston <- prune.tree(tree.boston, best = 5)
+plot(prune.boston)
+text(prune.boston, pretty = 0)
+```
+
+```{r}
+yhat <- predict(tree.boston, newdata = Boston[-train,])
+boston.test <- Boston[-train, "medv"]
+plot(yhat, boston.test)
+abline(0,1)
+mean((yhat-boston.test)^2)
+```
+
+# Exercises
+## Exercise 8a: Split the data into a training set and a test set
+
+```{r}
+Carseats$High <- NULL
+set.seed(1111)
+index <- sample(1:nrow(Carseats), nrow(Carseats)/2)
+```
+
+## Exercise 8b: Fit a regression tree to the training set. Plot the tree, and interpret the results. What test MSE did you obtain?
+
+```{r}
+tree.carseats <- tree(Sales~., Carseats, subset = train)
+summary(tree.carseats)
+plot(tree.carseats)
+text(tree.carseats, pretty = 0)
+```
+
+```{r}
+yhat <- predict(tree.carseats, newdata=Carseats[-train,])
+carseats.test <- Carseats[-train, "Sales"]
+plot(yhat, carseats.test)
+abline(0,1)
+mean((yhat - carseats.test)^2)
+```
+The initial splits are made on shelf location followed by price. After that comes competitor prices. I got a MSE of 5.79
+
+## 8c: Use cross-validation in order to determin the optimal level of tree complexity. Does pruning the tree improve the test MSE
+
+```{r}
+cv.carseats <- cv.tree(tree.carseats)
+plot(cv.carseats$size, cv.carseats$dev, type = "b")
+# 10 looks like it could be better
+prune.carseats <- prune.tree(tree.carseats, best = 10)
+plot(prune.carseats)
+text(prune.carseats, pretty = 0)
+```
+
+```{r}
+yhat <- predict(prune.carseats, newdata=Carseats[-train,])
+carseats.test <- Carseats[-train, "Sales"]
+plot(yhat, carseats.test)
+abline(0,1)
+mean((yhat - carseats.test)^2)
+```
+
+Very slightly reduced the MSE by pruning from 5.79 to 5.74
