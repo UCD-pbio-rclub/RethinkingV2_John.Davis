@@ -29,6 +29,7 @@ High <- ifelse(Sales <= 8, "No", "Yes")
 
 ```{r}
 Carseats <- data.frame(Carseats,High)
+Carseats$High <- as.factor(High)
 ```
 
 ```{r}

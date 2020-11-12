@@ -100,11 +100,15 @@ model{
         mu[i] = shape * exp(-(mu[i]));
     }
     for ( i in 1:N ) 
-       if ( germ[i] == 0 ) target += log_mix(p[i], 0, gamma_lccdf(day[i] | shape, mu[i]));
+       ;
     for ( i in 1:N ) 
-       if ( germ[i] == 1 ) target += log1m(p[i]) + gamma_lpdf(day[i] | shape, mu[i]);
-    for ( i in 1:N ) 
-       if ( germ[i] == 1 ) day[i] ~ gamma( shape, mu[i] );
+      if ( germ[i] == 0 ) target += log_mix(p[i], 0, gamma_lccdf(day[i] | shape, mu[i]));
+    for ( i in 1:N ) {
+      if ( germ[i] == 1 ){
+        day[i] ~ gamma( shape, mu[i] );
+        target += log1m(p[i]) + gamma_lpdf(day[i] | shape, mu[i]);
+      }
+    }
 }
 "
 m1.7a <- stan(model_code=stanmodel1.7a, data=d, chains=4, cores=4, control=list(adapt_delta=.99))
@@ -380,4 +384,41 @@ post_plot1.7c %>%
   ggplot(aes(x=day,y=prop_germ,color=temps,group=temps)) +
   geom_line() +
   geom_point(data=stdi.plot)
+```
+
+###### 
+```{r}
+post <- as.data.frame(m1.7a)
+
+post_logavgdays <- post %>% select(shape, starts_with("a["
+)) # these are the shape and the log(mean(avg time to germinate))
+mu_rate <- post_logavgdays %>% 
+  mutate(across(-shape, ~ shape*exp(-(.))) ) %>%
+  summarize(across(everything(), mean)) %>% select(-shape) # posterior mean
+mu_rate
+mu_shape <- mean(post$shape)
+
+post_logitp <- post %>% select(starts_with("ap")) #logit p dormant
+mu_p <- post_logitp %>%
+  summarize_all(mean) %>%
+  mutate_all(inv_logit)
+mu_p
+
+posterior_coef <- tibble(shape=mu_shape, temps=as.factor(unique(germ.stdi$temps)),
+                         rate=t(mu_rate),
+                         p=t(mu_p))
+
+post_plot1.7a <- expand_grid(posterior_coef, day=1:28) %>%
+  mutate(prop_germ=pgamma(day, shape=shape, rate=rate) * (1-p))
+
+stdi.plot <- germ %>% filter(pops=="STDI") %>% 
+  select(day, temps, cumulative_germ, total_seeds) %>%
+  mutate(temps=as.factor(temps),
+         prop_germ=cumulative_germ/total_seeds)
+
+post_plot1.7a %>% 
+  ggplot(aes(x=day,y=prop_germ,color=temps,group=temps)) +
+  geom_line() +
+  geom_point(data=stdi.plot)
+
 ```
