@@ -1,0 +1,87 @@
+---
+title: "Bagging, RandomForest, and Boosting"
+output:
+  html_document:
+  keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ISLR)
+library(tree)
+library(randomForest)
+```
+
+# 8.3 Lab: Decision Trees
+## 8.3.3 Bagging and Random Forests
+
+```{r}
+library(MASS)
+library(randomForest)
+set.seed(1)
+train <-  sample(1:nrow(Boston), nrow(Boston)/2)
+boston.test=Boston[-train ,"medv"]
+set.seed(1)
+bag.boston <- randomForest(medv ~ ., data=Boston, subset=train, mtry=13,importance =TRUE)
+bag.boston
+```
+
+```{r}
+yhat.bag <- predict(bag.boston, newdata = Boston[-train ,])
+plot(yhat.bag, boston.test)
+abline (0,1)
+mean((yhat.bag - boston.test)^2)
+```
+
+```{r}
+bag.boston <- randomForest(medv ~ ., data=Boston, subset=train, mtry=13, ntree=25)
+yhat.bag <- predict(bag.boston, newdata = Boston[-train,])
+mean((yhat.bag - boston.test)^2)
+```
+
+```{r}
+set.seed(1)
+rf.boston <- randomForest(medv ~ ., data = Boston, subset=train, mtry=6, importance =TRUE)
+yhat.rf <- predict(rf.boston, newdata=Boston[-train ,])
+mean((yhat.rf-boston.test)^2)
+```
+
+```{r}
+importance(rf.boston)
+```
+
+```{r}
+varImpPlot(rf.boston)
+```
+
+## 8.3.4 Boosting
+
+```{r}
+library(gbm)
+set.seed(1)
+boost.boston <- gbm(medv ~ ., data=Boston[train,], distribution = "gaussian", n.trees=5000, interaction.depth = 4)
+summary(boost.boston)
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(boost.boston, i= "rm")
+plot(boost.boston, i= "lstat")
+```
+
+```{r}
+par(mfrow=c(1,1))
+yhat.boost <- predict(boost.boston, newdata = Boston[-train ,], n.trees=5000)
+mean((yhat.boost - boston.test)^2)
+```
+
+```{r}
+boost.boston=gbm(medv ~ ., data=Boston[train ,], distribution= "gaussian", n.trees =5000, interaction.depth = 4, shrinkage = 0.2, verbose=F)
+yhat.boost <- predict(boost.boston, newdata = Boston[-train ,], n.trees=5000)
+mean((yhat.boost - boston.test)^2)
+```
+
+# Exercises
