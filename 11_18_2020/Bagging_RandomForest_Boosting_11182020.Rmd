@@ -13,13 +13,15 @@ knitr::opts_chunk$set(echo = TRUE)
 library(ISLR)
 library(tree)
 library(randomForest)
+library(MASS)
+library(gbm)
+library(dplyr)
 ```
 
 # 8.3 Lab: Decision Trees
 ## 8.3.3 Bagging and Random Forests
 
 ```{r}
-library(MASS)
 library(randomForest)
 set.seed(1)
 train <-  sample(1:nrow(Boston), nrow(Boston)/2)
@@ -60,7 +62,6 @@ varImpPlot(rf.boston)
 ## 8.3.4 Boosting
 
 ```{r}
-library(gbm)
 set.seed(1)
 boost.boston <- gbm(medv ~ ., data=Boston[train,], distribution = "gaussian", n.trees=5000, interaction.depth = 4)
 summary(boost.boston)
@@ -85,3 +86,336 @@ mean((yhat.boost - boston.test)^2)
 ```
 
 # Exercises
+## Exercise 8
+### 8a: Split the data into a training set and a test set
+
+```{r}
+dat <- Carseats
+set.seed(1)
+train <- sample(1:nrow(dat), nrow(dat)/2)
+```
+
+### 8b: Fit a regression tree to the training set. Plot the tree, and interpret the results. What test MSE did you obtain?
+
+```{r}
+tree.carseats <- tree(Sales ~ ., dat, subset = train)
+summary(tree.carseats)
+plot(tree.carseats)
+text(tree.carseats, pretty = 0)
+```
+
+```{r}
+yhat <- predict(tree.carseats, newdata=dat[-train,])
+carseats.test <- dat[-train, "Sales"]
+plot(yhat, carseats.test)
+abline(0,1)
+mean((yhat - carseats.test)^2)
+```
+The initial splits are made on shelf location followed by price. After that comes competitor prices. I got a MSE of 4.92
+
+### 8c: Use cross-validation in order to determin the optimal level of tree complexity. Does pruning the tree improve the test MSE
+
+```{r}
+cv.carseats <- cv.tree(tree.carseats)
+plot(cv.carseats$size, cv.carseats$dev, type = "b")
+# 10 looks like it could be better
+prune.carseats <- prune.tree(tree.carseats, best = 10)
+plot(prune.carseats)
+text(prune.carseats, pretty = 0)
+```
+
+```{r}
+yhat <- predict(prune.carseats, newdata=dat[-train,])
+plot(yhat, carseats.test)
+abline(0,1)
+mean((yhat - carseats.test)^2)
+```
+
+Very slightly reduced the MSE by pruning from 4.922 to 4.918
+
+### 8d: Use the bagging approach in order to analyze this data. What test MSE do you obtain? Use the importance() function to determine which variables are most important
+
+```{r}
+set.seed(1)
+bag.carseats <- randomForest(Sales ~ ., data=dat, subset=train, mtry=10,importance =TRUE)
+bag.carseats
+
+yhat <- predict(bag.carseats, newdata=dat[-train,])
+plot(yhat, carseats.test)
+abline(0,1)
+mean((yhat - carseats.test)^2)
+
+importance(bag.carseats)
+varImpPlot(bag.carseats)
+```
+
+MSE is now 2.61. Shelf location and price appear to be the two most important variables.
+
+### 8e: Use random forests to analyze this data. What test MSE do you obtain? Use the importance() function to determine which variables are most important. Describe the effect of m, the number of variables considered at each split, on the error rate obtained.
+
+```{r}
+rf.carseats <- randomForest(Sales ~ ., data = dat, subset = train, importance = TRUE)
+rf.carseats
+yhat <- predict(rf.carseats, newdata = dat[-train,])
+plot(yhat, carseats.test)
+abline(0,1)
+mean((yhat - carseats.test)^2)
+
+importance(rf.carseats)
+varImpPlot(rf.carseats)
+```
+
+m was equal to 3 in this case 10/3. 
+MSE is now 3.05 which is an increase.
+Shelf location and price appear to be the two most important variables.
+
+## Exercise 9
+### 9a: Create a training set containing a random sample of 800 observations, and a test set containing the remaining observations.
+
+```{r}
+dat <- OJ
+summary(dat)
+dim(dat)
+set.seed(1)
+train <- sample(1:nrow(dat), 800)
+dat.train <- dat[train,]
+dat.test <- dat[-train,]
+```
+
+### 9b: Fit a tree to the training data, with Purchase as the response and the other variables as predictors. Use the summary() function to produce summary statistics about the tree, and describe the results obtained. What is the training error rate? How many terminal nodes does the tree have?
+
+```{r}
+tree.oj <- tree(Purchase ~ ., dat.train)
+summary(tree.oj)
+```
+
+15.88% training error rate and 9 terminal nodes. only 5 of the possible 17 variables were uses in constructing the tree.
+
+### 9c: Type in the name of the tree object in order to get a detailed text output. Pick one of the terminal nodes, and interpret the information displayed.
+
+```{r}
+tree.oj
+```
+
+7) LoyalCH > 0.764572 261   91.20 CH ( 0.95785 0.04215 ) *
+
+This is node 7, the split was on LoyalCH > 0.76, it included 261 samples which were > 0.76, the deviance was 91.20, the yval was CH, the probability of being CH is .958, and it is a terminal node.
+
+### 9d: Create a plot of the tree, and interpret the results.
+
+```{r}
+plot(tree.oj)
+text(tree.oj, pretty = 0)
+```
+
+Yup it's a tree
+
+### 9e: Predict the response on the test data, and produce a confusion matrix comparing the test labels to the predicted test labels. What is the test error rate?
+
+```{r}
+yhat <- predict(tree.oj, dat.test, type = "class")
+table(yhat, dat.test$Purchase)
+(160+64)/270 #82.96% Correct
+(8+38)/270 #17.04% Wrong
+```
+
+### 9f:  Apply the cv.tree() function to the training set in order to determine the optimal tree size.
+
+```{r}
+cv.oj <- cv.tree(tree.oj, FUN=prune.misclass)
+cv.oj
+```
+
+
+### 9g: Produce a plot with tree size on the x-axis and cross-validated classification error rate on the y-axis.
+
+```{r}
+plot(cv.oj)
+plot(cv.oj$size, cv.oj$dev, type = "b")
+```
+
+
+### 9h: Which tree size corresponds to the lowest cross-validated classification error rate?
+
+7 corresponds to the lowest error rate, 
+
+### 9i: Produce a pruned tree corresponding to the optimal tree size obtained using cross-validation. If cross-validation does not lead to selection of a pruned tree, then create a pruned tree with five terminal nodes.
+
+```{r}
+prune.oj <- prune.misclass(tree.oj, best = 7)
+plot(prune.oj)
+text(prune.oj, pretty = 0)
+```
+
+### 9j: Compare the training error rates between the pruned and unpruned trees. Which is higher?
+
+```{r}
+yhat <- predict(prune.oj, dat.train, type = "class")
+table(yhat, dat.train$Purchase)
+
+(44+86)/800 # 16.25% error rate on pruned training
+
+yhat <- predict(tree.oj, dat.train, type = "class")
+table(yhat, dat.train$Purchase)
+(35+92)/800 # 15.88% error rate on the unpruned training
+```
+
+Error rate of the pruned tree was higher
+
+### 9k: Compare the test error rates between the pruned and unpruned trees. Which is higher?
+
+```{r}
+yhat <- predict(prune.oj, dat.test, type = "class")
+table(yhat, dat.test$Purchase)
+
+(8+36)/270 # 16.30% error rate on pruned test
+
+yhat <- predict(tree.oj, dat.test, type = "class")
+table(yhat, dat.test$Purchase)
+
+(8+38)/270 # 17.04% error rate on unpruned test
+```
+
+Error rate of the pruned tree was lower
+
+## Exercise 10
+
+### 10a: Remove the observations for whom the salary information is unknown, and then log-transform the salaries.
+```{r}
+dat <- Hitters %>%
+  filter(!is.na(Salary)) %>%
+  mutate(Salary = log(Salary))
+```
+
+### 10b: Create a training set consisting of the first 200 observations, and a test set consisting of the remaining observations
+
+```{r}
+train <- 1:200
+dat.train <- dat[train,]
+dat.test <- dat[-train,]
+```
+
+### 10c:  Perform boosting on the training set with 1,000 trees for a range of values of the shrinkage parameter λ. Produce a plot with different shrinkage values on the x-axis and the corresponding training set MSE on the y-axis
+
+```{r}
+set.seed(1)
+shrink <- seq(0.0001, 0.10, length.out = 10)
+train.mse <- double(10)
+for (i in 1:10) {
+  boost.hitters <-
+    gbm(
+      Salary ~ .,
+      data = dat.train,
+      distribution = "gaussian",
+      n.trees = 1000,
+      shrinkage = shrink[i],
+      interaction.depth = 4
+    )
+  yhat.boost <-
+    predict(boost.hitters, newdata = dat.train, n.trees = 1000)
+  train.mse[i] <- mean((yhat.boost - dat.train$Salary) ^ 2)
+}
+plot(shrink,train.mse, type="b")
+```
+
+### 10d: Produce a plot with different shrinkage values on the x-axis and the corresponding test set MSE on the y-axis
+
+```{r}
+test.mse <- double(10)
+for (i in 1:10) {
+  boost.hitters <-
+    gbm(
+      Salary ~ .,
+      data = dat.train,
+      distribution = "gaussian",
+      n.trees = 1000,
+      shrinkage = shrink[i],
+      interaction.depth = 4
+    )
+  yhat.boost <-
+    predict(boost.hitters, newdata = dat.test, n.trees = 1000)
+  test.mse[i] <- mean((yhat.boost - dat.test$Salary) ^ 2)
+}
+matplot(shrink, cbind(train.mse, test.mse), pch = 19, col = c("blue", "red", type = "b", ylab = "Mean Squared Error"))
+legend("topright",legend=c("Train MSE", "Test MSE"), pch = 19, col = c("blue","red"))
+```
+
+### 10e: Compare the test MSE of boosting to the test MSE that results from applying two of the regression approaches seen in Chapters 3 and 6
+
+Skip
+
+### 10f: Which variables appear to be the most important predictors in the boosted model
+
+```{r}
+boost.hitters <-
+    gbm(
+      Salary ~ .,
+      data = dat.train,
+      distribution = "gaussian",
+      n.trees = 1000,
+      interaction.depth = 4
+    )
+summary(boost.hitters)
+```
+
+Number of times at bat and number of hits across their career
+
+### 10g: Now apply bagging to the training set. What is the test set MSE for this approach?
+
+```{r}
+set.seed(1)
+bag.hitters <- randomForest(Salary ~ ., data=dat.train, mtry=19,importance =TRUE)
+bag.hitters
+
+yhat <- predict(bag.hitters, newdata=dat.test)
+plot(yhat, dat.test$Salary)
+abline(0,1)
+mean((yhat - dat.test$Salary)^2)
+
+importance(bag.hitters)
+varImpPlot(bag.hitters)
+```
+
+MSE is 0.2301184
+
+## Exercise 11
+### 11a: Create a training set consisting of the first 1,000 observations, and a test set consisting of the remaining observations.
+
+```{r}
+dat <- Caravan %>%
+  mutate(Purchase = ifelse(Purchase == "Yes", 1, 0))
+train <- 1:1000
+dat.train <- dat[train,]
+dat.test <- dat[-train,]
+```
+
+
+### 11b: Fit a boosting model to the training set with Purchase as the response and the other variables as predictors. Use 1,000 trees, and a shrinkage value of 0.01. Which predictors appear to be the most important?
+
+```{r}
+set.seed(1)
+boost.caravan <- gbm(
+  Purchase ~ .,
+  data = dat.train,
+  distribution = "bernoulli",
+  n.trees = 1000,
+  interaction.depth = 4,
+  shrinkage = 0.01
+)
+summary(boost.caravan)
+```
+
+Contribution car policies (PPERSAUT) and High level education (MOPLHOOG ) appear to be the most important variables
+
+### 11c:  Use the boosting model to predict the response on the test data. Predict that a person will make a purchase if the estimated probability of purchase is greater than 20 %. Form a confusion matrix. What fraction of the people predicted to make a purchase do in fact make one? How does this compare with the results obtained from applying KNN or logistic regression to this data set?
+
+```{r}
+yhat.boost <- predict(boost.caravan, dat.test, n.trees = 1000, type = "response")
+
+yhat.boost <- ifelse(yhat.boost > .20, 1, 0)
+table(predicted=yhat.boost, observed =dat.test$Purchase)
+
+31/(197+31)
+```
+
+13.60% People predicted to purchase do
