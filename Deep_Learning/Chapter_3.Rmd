@@ -1,0 +1,1199 @@
+---
+title: "Chapter 3"
+author: "John D."
+date: "1/12/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+R.version
+
+library("keras")
+library("dplyr")
+```
+
+# Chapter 3. Getting started with neural networks
+## 3.1. ANATOMY OF A NEURAL NETWORK
+### 3.1.1. Layers: the building blocks of deep learning
+
+```{r}
+layer <- layer_dense(units = 32, input_shape = c(784))
+layer
+
+model <- keras_model_sequential() %>%
+  layer_dense(units = 32, input_shape = c(784)) %>%
+  layer_dense(units = 32)
+model
+```
+### 3.1.2. Models: networks of layers
+### 3.1.3. Loss functions and optimizers: keys to configuring the learning process
+## 3.2. INTRODUCTION TO KERAS
+### 3.2.1. Keras, TensorFlow, Theano, and CNTK
+### 3.2.2. Installing Keras
+### 3.2.3. Developing with Keras: a quick overview
+
+```{r}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 32, input_shape = c(784)) %>%
+  layer_dense(units = 10, activation = "softmax")
+model
+```
+
+```{r}
+input_tensor <- layer_input(shape = c(784))
+input_tensor
+
+output_tensor <- input_tensor %>%
+  layer_dense(units = 32, activation = "relu") %>%
+  layer_dense(units = 10, activation = "softmax")
+output_tensor
+
+model <- keras_model(inputs = input_tensor, outputs = output_tensor)
+model
+```
+
+```{r}
+model %>% compile(
+  optimizer = optimizer_rmsprop(lr = 0.0001),
+  loss = "mse",
+  metrics = c("accuracy")
+)
+model
+```
+```{r}
+# model %>% fit(input_tensor, target_tensor, batch_size = 128, epochs = 10)
+# model
+```
+
+## 3.3. SETTING UP A DEEP-LEARNING WORKSTATION
+### 3.3.1. Getting Keras running: two options
+### 3.3.2. Running deep-learning jobs in the cloud: pros and cons
+### 3.3.3. What is the best GPU for deep learning?
+## 3.4. CLASSIFYING MOVIE REVIEWS: A BINARY CLASSIFICATION EXAMPLE
+### 3.4.1. The IMDB dataset
+
+```{r}
+imdb <- dataset_imdb(num_words = 10000)
+str(imdb)
+c(c(train_data, train_labels), c(test_data, test_labels)) %<-% imdb # Takes imdb, a list of 2 lists (train and test) (x and y) and assigns them
+```
+
+```{r}
+`%<-%`
+```
+
+```{r}
+#imdb <- dataset_imdb(num_words = 10000)
+#train_data <- imdb$train$x
+#train_labels <- imdb$train$y
+#test_data <- imdb$test$x
+#test_labels <- imdb$test$y
+```
+
+```{r}
+str(train_data[[1]])
+train_labels[[1]]
+```
+```{r}
+max(sapply(train_data, max))
+```
+```{r}
+word_index <- dataset_imdb_word_index()
+head(word_index)
+```
+```{r}
+reverse_word_index <- names(word_index) 
+head(reverse_word_index)
+```
+
+```{r}
+names(reverse_word_index) <- word_index
+head(reverse_word_index)
+```
+
+```{r}
+decoded_review <- sapply(train_data[[1]], function(index) {                
+  word <- if (index >= 3) reverse_word_index[[as.character(index - 3)]]
+  if (!is.null(word)) word else "?"
+})
+head(decoded_review)
+```
+
+### 3.4.2. Preparing the data
+
+```{r}
+vectorize_sequences <- function(sequences, dimension = 10000) {
+  results <- matrix(0, nrow = length(sequences), ncol = dimension)      
+  for (i in 1:length(sequences))
+    results[i, sequences[[i]]] <- 1                                     
+  results
+}
+
+x_train <- vectorize_sequences(train_data)
+x_test <- vectorize_sequences(test_data)
+```
+
+```{r}
+dim(x_train)
+```
+
+```{r}
+train_data[[1]]
+```
+
+```{r}
+x_train[1,1:10]
+```
+The vector is all 10,000 words we are using. A 1 means it is present in the review and a 0 means it is absent in the review. This message does not take into account the frequency or order of the words used in the review
+
+```{r}
+str(x_train[1,])
+```
+
+```{r}
+y_train <- as.numeric(train_labels)
+y_test <- as.numeric(test_labels)
+```
+
+### 3.4.3. Building your network
+
+```{r}
+# output = relu(dot(W, input) + b)
+```
+
+```{r}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+model
+```
+
+```{r}
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+model
+```
+
+```{r}
+#model %>% compile(
+#  optimizer = optimizer_rmsprop(lr=0.001),
+#  loss = "binary_crossentropy",
+#  metrics = c("accuracy")
+#)
+```
+
+```{r}
+#model %>% compile(
+#  optimizer = optimizer_rmsprop(lr = 0.001),
+#  loss = loss_binary_crossentropy,
+#  metrics = metric_binary_accuracy
+#)
+```
+
+### 3.4.4. Validating your approach
+
+```{r}
+val_indices <- 1:10000
+
+x_val <- x_train[val_indices,]
+partial_x_train <- x_train[-val_indices,]
+y_val <- y_train[val_indices]
+partial_y_train <- y_train[-val_indices]
+```
+
+```{r}
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+```
+
+```{r}
+str(history)
+```
+
+```{r}
+plot(history)
+```
+
+```{r}
+history_df <- as.data.frame(history)
+str(history_df)
+```
+
+```{r}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+model %>% fit(x_train, y_train, epochs = 4, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+```
+
+```{r}
+results
+```
+
+### 3.4.5. Using a trained network to generate predictions on new data
+
+```{r}
+model %>% predict(x_test[1:10,])
+```
+
+### 3.4.6. Further experiments
+### 3.4.7. Wrapping up
+
+## 3.4.6 Problems
+
+### 1. You used two hidden layers. Try using one or three hidden layers, and see how doing so affects validation and test accuracy.
+
+```{r}
+# clear space
+ls()
+rm(decoded_review, history, history_df, imdb, input_tensor, layer, model, output_tensor,
+  partial_x_train, partial_y_train, results, reverse_word_index, test_data, test_labels, train_data, train_labels, val_indices,
+  vectorize_sequences, word_index, x_val, y_val)
+gc()
+ls()
+```
+
+```{r}
+# 1 hidden layer
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+model %>% fit(x_train, y_train, epochs = 4, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+results
+gc()
+```
+
+```{r}
+# 3 hidden layers
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+model %>% fit(x_train, y_train, epochs = 4, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+results
+gc()
+```
+
+Using only one layer slightly improved accuracy, but 3 layers lowered it
+
+### 2. Try using layers with more hidden units or fewer hidden units: 32 units, 64 units, and so on.2
+
+```{r}
+# 8 Hidden Units
+model <- keras_model_sequential() %>%
+  layer_dense(units = 8, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 8, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+model %>% fit(x_train, y_train, epochs = 4, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+results
+gc()
+```
+
+```{r}
+# 32 Hidden Units
+model <- keras_model_sequential() %>%
+  layer_dense(units = 32, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 32, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+model %>% fit(x_train, y_train, epochs = 4, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+results
+gc()
+```
+
+```{r}
+# 64 Hidden Units
+model <- keras_model_sequential() %>%
+  layer_dense(units = 64, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 64, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+model %>% fit(x_train, y_train, epochs = 4, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+results
+gc()
+```
+
+Using 8, 32, and 64 Hidden Units gave worse results than using only 16 Hidden Units
+
+### 3. Try using the mse loss function instead of binary_crossentropy
+
+```{r}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "mse",
+  metrics = c("accuracy")
+)
+
+model %>% fit(x_train, y_train, epochs = 4, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+results
+gc()
+```
+
+MSE gave a slightly worse results
+
+### 4. Try using the tanh activation (an activation that was popular in the early days of neural networks) instead of relu.
+
+```{r}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "tanh", input_shape = c(10000)) %>%
+  layer_dense(units = 16, activation = "tanh") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+model %>% fit(x_train, y_train, epochs = 4, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+results
+gc()
+```
+
+Using tanh for activation led to a decrease in accuracy
+
+## 3.5. CLASSIFYING NEWSWIRES: A MULTICLASS CLASSIFICATION EXAMPLE
+```{r}
+rm(x_test,x_train,y_test,y_train)
+gc()
+```
+
+
+
+### 3.5.1. The Reuters dataset
+
+```{r}
+reuters <- dataset_reuters(num_words = 10000)
+c(c(train_data, train_labels), c(test_data, test_labels)) %<-% reuters
+```
+
+```{r}
+length(train_data)
+length(test_data)
+```
+
+```{r}
+train_data[[1]]
+```
+
+```{r}
+word_index <- dataset_reuters_word_index()
+reverse_word_index <- names(word_index)
+names(reverse_word_index) <- word_index
+decoded_newswire <- sapply(train_data[[1]], function(index) {
+  word <- if (index >= 3) reverse_word_index[[as.character(index - 3)]]
+  if (!is.null(word)) word else "?"
+})
+```
+
+```{r}
+train_labels[[1]]
+```
+### 3.5.2. Preparing the data
+
+```{r}
+vectorize_sequences <- function(sequences, dimension = 10000) {
+  results <- matrix(0, nrow = length(sequences), ncol = dimension)
+  for (i in 1:length(sequences))
+    results[i, sequences[[i]]] <- 1
+  results
+}
+
+x_train <- vectorize_sequences(train_data)            
+x_test <- vectorize_sequences(test_data)              
+```
+
+```{r}
+to_one_hot <- function(labels, dimension = 46) {
+  results <- matrix(0, nrow = length(labels), ncol = dimension)
+  for (i in 1:length(labels))
+    results[i, labels[[i]] + 1] <- 1
+  results
+}
+
+one_hot_train_labels <- to_one_hot(train_labels)
+one_hot_test_labels <- to_one_hot(test_labels)
+```
+
+```{r}
+one_hot_train_labels <- to_categorical(train_labels)
+one_hot_test_labels <- to_categorical(test_labels)
+```
+
+### 3.5.3. Building your network
+
+```{r}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 64, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 64, activation = "relu") %>%
+  layer_dense(units = 46, activation = "softmax")
+```
+
+```{r}
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+```
+
+### 3.5.4. Validating your approach
+
+```{r}
+val_indices <- 1:1000
+
+x_val <- x_train[val_indices,]
+partial_x_train <- x_train[-val_indices,]
+
+y_val <- one_hot_train_labels[val_indices,]
+partial_y_train = one_hot_train_labels[-val_indices,]
+```
+
+```{r}
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+```
+
+```{r}
+plot(history)
+```
+
+```{r}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 64, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 64, activation = "relu") %>%
+  layer_dense(units = 46, activation = "softmax")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 9,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+results <- model %>% evaluate(x_test, one_hot_test_labels)
+```
+
+```{r}
+results
+```
+
+```{r}
+test_labels_copy <- test_labels
+test_labels_copy <- sample(test_labels_copy)
+length(which(test_labels == test_labels_copy)) / length(test_labels)
+```
+
+### 3.5.5. Generating predictions on new data
+```{r}
+predictions <- model %>% predict(x_test)
+```
+
+```{r}
+dim(predictions)
+```
+
+```{r}
+sum(predictions[1,])
+```
+
+```{r}
+which.max(predictions[1,])
+```
+
+### 3.5.6. A different way to handle the labels and the loss
+
+```{r}
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "sparse_categorical_crossentropy",
+  metrics = c("accuracy")
+)
+```
+
+### 3.5.7. The importance of having sufficiently large intermediate layers
+
+```{r}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 64, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 4, activation = "relu") %>%
+  layer_dense(units = 46, activation = "softmax")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+
+model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 128,
+  validation_data = list(x_val, y_val)
+)
+```
+
+```{r}
+results <- model %>% evaluate(x_test, one_hot_test_labels)
+results
+```
+
+###  3.5.8. Further experiments
+```{r}
+## 32 units
+model <- keras_model_sequential() %>%
+  layer_dense(units = 64, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 32, activation = "relu") %>%
+  layer_dense(units = 46, activation = "softmax")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <-  model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 128,
+  validation_data = list(x_val, y_val)
+)
+
+plot(history)
+results <- model %>% evaluate(x_test, one_hot_test_labels)
+results
+```
+
+```{r}
+## 128 units
+model <- keras_model_sequential() %>%
+  layer_dense(units = 64, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 128, activation = "relu") %>%
+  layer_dense(units = 46, activation = "softmax")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <-  model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 128,
+  validation_data = list(x_val, y_val)
+)
+
+plot(history)
+results <- model %>% evaluate(x_test, one_hot_test_labels)
+results
+```
+
+```{r}
+## 128 units twice
+model <- keras_model_sequential() %>%
+  layer_dense(units = 128, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 128, activation = "relu") %>%
+  layer_dense(units = 46, activation = "softmax")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <-  model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 128,
+  validation_data = list(x_val, y_val)
+)
+
+plot(history)
+results <- model %>% evaluate(x_test, one_hot_test_labels)
+results
+```
+
+```{r}
+## 256 units twice
+model <- keras_model_sequential() %>%
+  layer_dense(units = 256, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 256, activation = "relu") %>%
+  layer_dense(units = 46, activation = "softmax")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <-  model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 128,
+  validation_data = list(x_val, y_val)
+)
+
+plot(history)
+results <- model %>% evaluate(x_test, one_hot_test_labels)
+results
+```
+
+ Adding more hidden units starts to level out, but too few it gets worse. Overall original example was best
+
+```{r}
+## 1 layer
+model <- keras_model_sequential() %>%
+  layer_dense(units = 64, activation = "relu", input_shape = c(10000)) %>% 
+  layer_dense(units = 46, activation = "softmax")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <-  model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 128,
+  validation_data = list(x_val, y_val)
+)
+
+plot(history)
+results <- model %>% evaluate(x_test, one_hot_test_labels)
+results
+```
+
+1 Layer saw a reduction in accuracy
+
+```{r}
+## 3 layers
+model <- keras_model_sequential() %>%
+  layer_dense(units = 64, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 64, activation = "relu") %>%
+  layer_dense(units = 64, activation = "relu") %>%
+  layer_dense(units = 46, activation = "softmax")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <-  model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 128,
+  validation_data = list(x_val, y_val)
+)
+
+plot(history)
+results <- model %>% evaluate(x_test, one_hot_test_labels)
+results
+```
+3 layers also reduction in accuracy
+
+
+```{r}
+## 3 layers with 4 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 64, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 64, activation = "relu") %>%
+  layer_dense(units = 64, activation = "relu") %>%
+  layer_dense(units = 46, activation = "softmax")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <-  model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 4,
+  batch_size = 128,
+  validation_data = list(x_val, y_val)
+)
+
+plot(history)
+results <- model %>% evaluate(x_test, one_hot_test_labels)
+results
+```
+
+Same result with less epochs
+
+### 3.5.9. Wrapping up
+
+## 3.6. PREDICTING HOUSE PRICES: A REGRESSION EXAMPLE
+
+### 3.6.1. The Boston Housing Price dataset
+
+```{r}
+dataset <- dataset_boston_housing()
+c(c(train_data, train_targets), c(test_data, test_targets)) %<-% dataset
+```
+
+```{r}
+str(train_data)
+str(test_data)
+```
+
+```{r}
+str(train_targets)
+```
+
+### 3.6.2. Preparing the data
+
+```{r}
+mean <- apply(train_data, 2, mean)
+std <- apply(train_data, 2, sd)
+train_data <- scale(train_data, center = mean, scale = std)
+test_data <- scale(test_data, center = mean, scale = std)
+```
+
+### 3.6.3. Building your network
+
+```{r}
+build_model <- function() {
+  model <- keras_model_sequential() %>%
+    layer_dense(units = 64, activation = "relu",
+                input_shape = dim(train_data)[[2]]) %>%
+    layer_dense(units = 64, activation = "relu") %>%
+    layer_dense(units = 1)
+  model %>% compile(
+    optimizer = "rmsprop",
+    loss = "mse",
+    metrics = c("mae")
+  )
+}
+```
+
+### 3.6.4. Validating your approach using K-fold validation
+
+```{r}
+# k <- 4
+# indices <- sample(1:nrow(train_data))
+# folds <- cut(indices, breaks = k, labels = FALSE)
+# 
+# num_epochs <- 100
+# all_scores <- c()
+# for (i in 1:k) {
+#   cat("processing fold #", i, "\n")
+# 
+#   val_indices <- which(folds == i, arr.ind = TRUE)
+#   val_data <- train_data[val_indices,]
+#   val_targets <- train_targets[val_indices]
+#   partial_train_data <- train_data[-val_indices,]
+#   partial_train_targets <- train_targets[-val_indices]
+# 
+#   model <- build_model()
+# 
+#   model %>% fit(partial_train_data, partial_train_targets,
+#                 epochs = num_epochs, batch_size = 1, verbose = 0)
+# 
+#   results <- model %>% evaluate(val_data, val_targets, verbose = 0)
+#   all_scores <- c(all_scores, results[[2]])
+# }
+```
+
+```{r}
+# all_scores
+# mean(all_scores)
+```
+
+```{r}
+# num_epochs <- 500
+# all_mae_histories <- NULL
+# for (i in 1:k) {
+#   cat("processing fold #", i, "\n")
+# 
+#   val_indices <- which(folds == i, arr.ind = TRUE)
+#   val_data <- train_data[val_indices,]
+#   val_targets <- train_targets[val_indices]
+# 
+#   partial_train_data <- train_data[-val_indices,]
+#   partial_train_targets <- train_targets[-val_indices]
+# 
+#   model <- build_model()
+# 
+#   history <- model %>% fit(
+#     partial_train_data, partial_train_targets,
+#     validation_data = list(val_data, val_targets),
+#     epochs = num_epochs, batch_size = 1, verbose = 0
+#   )
+#   mae_history <- history$metrics$val_mean_absolute_error
+#   all_mae_histories <- rbind(all_mae_histories, mae_history)
+# }
+```
+
+```{r}
+# average_mae_history <- data.frame(
+#   epoch = seq(1:ncol(all_mae_histories)),
+#   validation_mae = apply(all_mae_histories, 2, mean)
+# )
+```
+
+```{r}
+# library(ggplot2)
+# ggplot(average_mae_history, aes(x = epoch, y = validation_mae)) + geom_line()
+```
+
+```{r}
+# ggplot(average_mae_history, aes(x = epoch, y = validation_mae)) + geom_smooth()
+```
+
+```{r}
+model <- build_model()
+model %>% fit(train_data, train_targets,
+          epochs = 80, batch_size = 16, verbose = 0)
+result <- model %>% evaluate(test_data, test_targets)
+```
+
+```{r}
+result
+```
+
+### 3.6.5. Wrapping up
+## 3.7. SUMMARY
+
+# Problems for 1/12/2021
+See if you can fit a model to predict OJ purchase, using the dataset from chapter 8 of the ISLR book (this is used in problem 9 of Chapter 8, which we did in November).  How do your results compare to the tree-based methods from ISLR? (be sure to use the same training and test sets)
+
+```{r}
+# Refresh workspace
+rm(list = ls())
+gc()
+library(ISLR)
+library(tree)
+library(randomForest)
+library(MASS)
+library(gbm)
+library(dplyr)
+```
+
+```{r}
+# Set up the data
+dat <- OJ
+summary(dat)
+dim(dat)
+# 0 = CH 1 = MM
+nn_labels <- as.numeric(dat$Purchase) - 1
+nn_data <- dat[,-1]
+set.seed(1)
+train <- sample(1:nrow(dat), 800)
+tree.train <- dat[train,]
+tree.test <- dat[-train,]
+nn_train_data <- data.matrix(nn_data[train,])
+nn_test_data <- data.matrix(nn_data[-train,])
+nn_train_label <- data.matrix(nn_labels[train])
+nn_test_label <- data.matrix(nn_labels[-train])
+```
+
+## Standard tree
+```{r}
+tree.oj <- tree(Purchase ~ ., tree.train)
+summary(tree.oj)
+```
+
+15.88% training error rate and 9 terminal nodes. only 5 of the possible 17 variables were uses in constructing the tree.
+
+```{r}
+yhat <- predict(tree.oj, tree.test, type = "class")
+table(yhat, tree.test$Purchase)
+(160+64)/270 #82.96% Correct
+(8+38)/270 #17.04% Wrong
+```
+
+```{r}
+cv.oj <- cv.tree(tree.oj, FUN=prune.misclass)
+cv.oj
+```
+
+```{r}
+prune.oj <- prune.misclass(tree.oj, best = 7)
+plot(prune.oj)
+text(prune.oj, pretty = 0)
+```
+
+```{r}
+yhat <- predict(prune.oj, tree.train, type = "class")
+table(yhat, tree.train$Purchase)
+
+(44+86)/800 # 16.25% error rate on pruned training
+
+yhat <- predict(tree.oj, tree.train, type = "class")
+table(yhat, tree.train$Purchase)
+(35+92)/800 # 15.88% error rate on the unpruned training
+```
+
+```{r}
+yhat <- predict(prune.oj, tree.test, type = "class")
+table(yhat, tree.test$Purchase)
+
+(8+36)/270 # 16.30% error rate on pruned test
+
+yhat <- predict(tree.oj, tree.test, type = "class")
+table(yhat, tree.test$Purchase)
+
+(8+38)/270 # 17.04% error rate on unpruned test
+```
+
+## Bagging tree
+```{r}
+set.seed(1)
+bag.oj <- randomForest(Purchase ~ .,
+                       data=tree.train,
+                       mtry=17,
+                       importance =TRUE)
+bag.oj
+
+yhat <- predict(bag.oj, newdata=tree.test)
+table(yhat, tree.test$Purchase)
+(16+34)/270 * 100 # 18.52 test error
+```
+## Boosting
+```{r}
+set.seed(1)
+tree.train$Purchase <- as.numeric(tree.train$Purchase)-1
+tree.test$Purchase <- as.numeric(tree.test$Purchase)-1
+boost.oj <- gbm(
+  Purchase ~ .,
+  data = tree.train,
+  distribution = "bernoulli",
+  n.trees = 1000,
+  interaction.depth = 4,
+  shrinkage = 0.01
+)
+summary(boost.oj)
+
+yhat.boost <- predict(boost.oj, tree.test, n.trees = 1000, type = "response")
+
+yhat.boost <- ifelse(yhat.boost > .50, 1, 0)
+table(predicted=yhat.boost, observed =tree.test$Purchase)
+(16+30)/270*100 # 17.037% test error rate if you assume 50% is MM
+```
+
+## Neural network
+
+```{r}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = dim(nn_train_data)[[2]]) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+val_indices <- 1:200
+
+x_val <- nn_train_data[val_indices,]
+partial_x_train <- nn_train_data[-val_indices,]
+y_val <- nn_train_label[val_indices]
+partial_y_train <- nn_train_label[-val_indices]
+
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+```
+
+```{r}
+plot(history)
+```
+
+## Try 9 epochs
+
+```{r}
+model %>% fit(nn_train_data, nn_train_label, epochs = 9)
+
+results <- model %>% evaluate(nn_test_data, nn_test_label)
+results
+```
+
+Current accuracy is significantly worse than the tree methods
+```{r}
+# Try other methods
+model <- keras_model_sequential() %>%
+  layer_dense(units = 8, activation = "relu", input_shape = dim(nn_train_data)[[2]]) %>%
+  layer_dense(units = 8, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+model %>% fit(nn_train_data, nn_train_label, epochs = 9)
+
+results <- model %>% evaluate(nn_test_data, nn_test_label)
+results
+```
+Less hidden units did not help. Will remove predictors now
+
+```{r}
+## Remove predictors
+nn_data.small <- nn_data[,-c(1,2,13,17)]
+nn_train_data <- data.matrix(nn_data.small[train,])
+nn_test_data <- data.matrix(nn_data.small[-train,])
+
+# Try other methods
+model <- keras_model_sequential() %>%
+  layer_dense(units = 8, activation = "relu", input_shape = dim(nn_train_data)[[2]]) %>%
+  layer_dense(units = 8, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+model %>% fit(nn_train_data, nn_train_label, epochs = 9)
+
+results <- model %>% evaluate(nn_test_data, nn_test_label)
+results
+```
+
+Accuracy increased by removing the predictors
+
+```{r}
+# Try other methods
+model <- keras_model_sequential() %>%
+  layer_dense(units = 32, activation = "relu", input_shape = dim(nn_train_data)[[2]]) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 8, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+model %>% fit(nn_train_data, nn_train_label, epochs = 9)
+
+results <- model %>% evaluate(nn_test_data, nn_test_label)
+results
+```
+ Even better results
+ 
+```{r}
+# Try other methods
+model <- keras_model_sequential() %>%
+  layer_dense(units = 32, activation = "relu", input_shape = dim(nn_train_data)[[2]]) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 8, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+model %>% fit(nn_train_data, nn_train_label, epochs = 20)
+
+results <- model %>% evaluate(nn_test_data, nn_test_label)
+results
+```
+ Worse
