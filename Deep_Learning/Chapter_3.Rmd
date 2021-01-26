@@ -1191,9 +1191,54 @@ model %>% compile(
   loss = "binary_crossentropy",
   metrics = c("accuracy")
 )
-model %>% fit(nn_train_data, nn_train_label, epochs = 20)
+model %>% fit(nn_train_data, nn_train_label, epochs = 20, verbose = 0)
 
 results <- model %>% evaluate(nn_test_data, nn_test_label)
 results
 ```
  Worse
+
+```{r}
+## Remove predictors
+nn_data.small <- nn_data[,c(9,12,7,16,14)]
+nn_train_data <- data.matrix(nn_data.small[train,])
+nn_test_data <- data.matrix(nn_data.small[-train,])
+
+# Try other methods
+model <- keras_model_sequential() %>%
+  layer_dense(units = 32, activation = "relu", input_shape = dim(nn_train_data)[[2]]) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 8, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+model %>% fit(nn_train_data, nn_train_label, epochs = 20, verbose = 0)
+
+results <- model %>% evaluate(nn_test_data, nn_test_label)
+results
+```
+
+Better
+
+```{r}
+# Try other methods
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = dim(nn_train_data)[[2]]) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+model %>% fit(nn_train_data, nn_train_label, epochs = 100, verbose = 0)
+
+results <- model %>% evaluate(nn_test_data, nn_test_label)
+results
+```
+

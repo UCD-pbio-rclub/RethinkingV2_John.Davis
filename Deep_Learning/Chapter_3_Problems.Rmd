@@ -1,0 +1,145 @@
+---
+title: "Chapter 3"
+author: "John D."
+date: "1/26/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+R.version
+
+library(keras)
+library(tidyverse)
+library(ISLR)
+library(tree)
+library(randomForest)
+library(MASS)
+library(gbm)
+```
+
+# Load OJ
+
+```{r}
+# Set up the data
+dat <- OJ
+summary(dat)
+dim(dat)
+# 0 = CH 1 = MM
+nn_labels <- as.numeric(dat$Purchase) - 1
+nn_data <- dat[,-1]
+set.seed(1)
+train <- sample(1:nrow(dat), 800)
+tree.train <- dat[train,]
+tree.test <- dat[-train,]
+nn_train_data <- data.matrix(nn_data[train,])
+nn_test_data <- data.matrix(nn_data[-train,])
+nn_train_label <- data.matrix(nn_labels[train])
+nn_test_label <- data.matrix(nn_labels[-train])
+```
+
+# OJ Model
+```{r}
+## Remove predictors
+nn_data.small <- nn_data[,c(9,12,7,16,14)]
+nn_train_data <- data.matrix(nn_data.small[train,])
+nn_test_data <- data.matrix(nn_data.small[-train,])
+
+# Try other methods
+model <- keras_model_sequential() %>%
+  layer_dense(units = 32, activation = "relu", input_shape = dim(nn_train_data)[[2]]) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 8, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+model %>% fit(nn_train_data, nn_train_label, epochs = 20, verbose = 0)
+
+results <- model %>% evaluate(nn_test_data, nn_test_label)
+results
+```
+
+# Cancer Dataset
+```{r}
+# Refresh workspace
+rm(list = ls())
+gc()
+```
+
+# Load Cancer data
+```{r}
+dat_labels <- read_csv("cancer_labels.csv")
+dat_data <- read_csv("cancer_data.csv")
+```
+
+```{r}
+# process data
+# remove sample names
+unique(dat_labels$Class)
+dat_labels$X1 <- NULL
+dat_data$X1 <- NULL
+dat_labels$Class <- as.numeric(as.factor(dat_labels$Class)) - 1
+
+# Remove low variation data
+novariation <- apply(dat_data, 2, sd)==0
+dat_data <- dat_data[,!novariation]
+
+lowexpression <- apply(dat_data, 2, mean) < 1
+dat_data <- dat_data[, !lowexpression]
+
+# Split into test and train
+index <- sample(x = 1:nrow(dat_data), size =  600, replace = F)
+train_data <- as.matrix(dat_data[index,])
+test_data <- as.matrix(dat_data[-index,])
+
+train_targets <- as.integer(dat_labels$Class[index])
+test_targets <- as.integer(dat_labels$Class[-index])
+
+# Scale data using train as base
+mean <- apply(train_data, 2, mean)
+std <- apply(train_data, 2, sd)
+train_data <- scale(train_data, center = mean, scale = std)
+test_data <- scale(test_data, center = mean, scale = std)
+
+rm(mean, std, index, novariation, lowexpression, dat_data, dat_labels)
+gc()
+
+dim(test_data)
+length(test_targets)
+
+dim(train_data)
+length(train_targets)
+```
+
+```{r}
+# Build models
+# Function
+build_model <- function() {
+  model <- keras_model_sequential() %>%
+    layer_dense(units = 64, activation = "relu", input_shape = dim(train_data)[[2]]) %>%
+    layer_dense(units = 64, activation = "relu") %>%
+    layer_dense(units = 5, activation = "softmax")
+  model %>% compile(
+    optimizer = "rmsprop",
+    loss = "categorical_crossentropy",
+    metrics = c("accuracy")
+  )
+}
+```
+
+```{r}
+model <- build_model()
+model %>% fit(train_data, train_targets)
+result <- model %>% evaluate(test_data, test_targets)
+result
+```
+
