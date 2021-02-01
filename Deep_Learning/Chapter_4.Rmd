@@ -1,0 +1,121 @@
+---
+title: "Chapter 4"
+author: "John D."
+date: "2/1/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+R.version
+
+library("keras")
+library("dplyr")
+```
+
+# Chapter 4. Fundamentals of machine learning
+## 4.1. FOUR BRANCHES OF MACHINE LEARNING
+### 4.1.1. Supervised learning
+### 4.1.2. Unsupervised learning
+### 4.1.3. Self-supervised learning
+### 4.1.4. Reinforcement learning
+#### Classification and regression glossary
+
+1. Sample or input — One data point that goes into your model.
+2. Prediction or output — What comes out of your model.
+3. Target — The truth. What your model should ideally have predicted, according to an external source of data.
+4. Prediction error or loss value — A measure of the distance between your model’s prediction and the target.
+5. Classes — A set of possible labels to choose from in a classification problem. For example, when classifying cat and dog pictures, “dog” and “cat” are the two classes.
+6. Label — A specific instance of a class annotation in a classification problem. For instance, if picture #1234 is annotated as containing the class “dog,” then “dog” is a label of picture #1234.
+7. Ground-truth or annotations — All targets for a dataset, typically collected by humans.
+8. Binary classification — A classification task where each input sample should be categorized into two exclusive categories.
+9. Multiclass classification — A classification task where each input sample should be categorized into more than two categories: for instance, classifying handwritten digits.
+10. Multilabel classification — A classification task where each input sample can be assigned multiple labels. For instance, a given image may contain both a cat and a dog and should be annotated both with the “cat” label and the “dog” label. The number of labels per image is usually variable.
+11. Scalar regression — A task where the target is a continuous scalar value. Predicting house prices is a good example: the different target prices form a continuous space.
+12. Vector regression — A task where the target is a set of continuous values: for example, a continuous vector. If you’re doing regression against multiple values (such as the coordinates of a bounding box in an image), then you’re doing vector regression.
+13. Mini-batch or batch — A small set of samples (typically between 8 and 128) that are processed simultaneously by the model. The number of samples is often a power of 2, to facilitate memory allocation on GPU. When training, a mini-batch is used to compute a single gradient-descent update applied to the weights of the model.
+
+## 4.2. EVALUATING MACHINE-LEARNING MODELS
+### 4.2.1. Training, validation, and test sets
+
+#### Simple hold-out validation
+```{r}
+# indices <- sample(1:nrow(data), size = 0.80 * nrow(data))               
+# evaluation_data  <- data[-indices, ]                                    
+# training_data <- data[indices, ]                                        
+# 
+# model <- get_model()                                                    
+# model %>% train(training_data)                                          
+# validation_score <- model %>% evaluate(validation_data)                 
+# 
+# model <- get_model()                                                    
+# model %>% train(data)                                                   
+# test_score <- model %>% evaluate(test_data)    
+```
+
+#### K-fold validation
+
+```{r}
+# k <- 4
+# indices <- sample(1:nrow(data))
+# folds <- cut(indices, breaks = k, labels = FALSE)
+# 
+# validation_scores <- c()
+# for (i in 1:k) {
+# 
+#   validation_indices <- which(folds == i, arr.ind = TRUE)
+#   validation_data <- data[validation_indices,]                          
+#   training_data <- data[-validation_indices,]                           
+# 
+#   model <- get_model()                                                  
+#   model %>% train(training_data)
+#   results <- model %>% evaluate(validation_data)
+#   validation_scores <- c(validation_scores, results$accuracy)
+# }
+# 
+# validation_score <- mean(validation_scores)                             
+# 
+# model <- get_model()                                                    
+# model %>% train(data)                                                   
+# results <- model %>% evaluate(test_data)                                
+```
+
+#### Iterated K-fold validation with shuffling
+
+### 4.2.2. Things to keep in mind
+
+1. Data representativeness
+2. The arrow of time
+3. Redundancy in your data
+
+## 4.3. DATA PREPROCESSING, FEATURE ENGINEERING, AND FEATURE LEARNING
+### 4.3.1. Data preprocessing for neural networks
+
+* Vectorization
+* Value normalization
+  * Take small values
+  * Be homogenous
+    * Normalize each feature independently to have a mean of 0
+    * Normalize each feature independently to have a standard deviation of 1
+    
+```{r}
+# x <- scale(x) 
+```
+
+```{r}
+# mean <- apply(train_data, 2, mean)                                     
+# std <- apply(train_data, 2, sd)
+# train_data <- scale(train_data, center = mean, scale = std)            
+# test_data <- scale(test_data, center = mean, scale = std)
+```
+
+* Handling missing values
+  * Make missing values 0 if 0 does not mean anything in the data
+  * Make sure training and test have missing data if you expect it to be present
+  
+### 4.3.2. Feature engineering

@@ -130,7 +130,7 @@ build_model <- function() {
     layer_dense(units = 5, activation = "softmax")
   model %>% compile(
     optimizer = "rmsprop",
-    loss = "categorical_crossentropy",
+    loss = "sparse_categorical_crossentropy",
     metrics = c("accuracy")
   )
 }
@@ -138,8 +138,112 @@ build_model <- function() {
 
 ```{r}
 model <- build_model()
-model %>% fit(train_data, train_targets)
+model %>% fit(train_data, train_targets, epochs = 5)
 result <- model %>% evaluate(test_data, test_targets)
 result
 ```
 
+# Parkinsons data
+```{r}
+# Refresh workspace
+rm(list = ls())
+gc()
+```
+
+* subject - Integer that uniquely identifies each subject
+* age - Subject age
+* sex - Subject gender '0' - male, '1' - female
+* test_time - Time since recruitment into the trial. The integer part is the number of days since recruitment.
+* motor_UPDRS - Clinician's motor UPDRS score, linearly interpolated
+* total_UPDRS - Clinician's total UPDRS score, linearly interpolated
+* Jitter(%),Jitter(Abs),Jitter:RAP,Jitter:PPQ5,Jitter:DDP - Several measures of variation in fundamental frequency
+* Shimmer,Shimmer(dB),Shimmer:APQ3,Shimmer:APQ5,Shimmer:APQ11,Shimmer:DDA - Several measures of variation in amplitude
+* NHR,HNR - Two measures of ratio of noise to tonal components in the voice
+* RPDE - A nonlinear dynamical complexity measure
+* DFA - Signal fractal scaling exponent
+* PPE - A nonlinear measure of fundamental frequency variation
+
+```{r}
+park.data <- read_csv("parkinsons_updrs.data")
+summary(park.data)
+```
+
+```{r}
+# Subset data train on 80% of patients, k validation with 5 folds
+set.seed(123)
+k <- 5
+indices <- sample(1:max(park.data$`subject#`))
+folds <- cut(indices, breaks = k, labels = FALSE)
+```
+
+```{r}
+# Loop to process_data
+parkinson_model <- function(k = 5, epochs = 20) {
+  # Divide data by patients
+  indices <- sample(1:max(park.data$`subject#`))
+  folds <- cut(indices, breaks = k, labels = FALSE)
+  validation_scores <- c()
+  
+  # Split data sets
+  for (i in 1:k) {
+    # Prep data
+    validation_indices <- which(folds == i, arr.ind = TRUE)
+    training_data <-
+      park.data[!(park.data$`subject#` %in% validation_indices),-c(1, 6)]
+    validation_data <-
+      park.data[park.data$`subject#` %in% validation_indices,-c(1, 6)]
+    
+    # Normalize data
+    mean <- apply(training_data, 2, mean)
+    std <- apply(training_data, 2, sd)
+    training_data <-
+      scale(training_data, center = mean, scale = std)
+    validation_data <-
+      scale(validation_data, center = mean, scale = std)
+    
+    # Normalize targets
+    training_targets <-
+      park.data[!(park.data$`subject#` %in% validation_indices), 6] %>%
+      pull(total_UPDRS) %>% as.numeric()
+    validation_targets <-
+      park.data[park.data$`subject#` %in% validation_indices, 6] %>%
+      pull(total_UPDRS) %>% as.numeric()
+    mean <- mean(training_targets, na.rm = T)
+    std <- sd(training_targets, na.rm = T)
+    training_targets <-
+      scale(training_targets, center = mean, scale = std)
+    validation_targets <-
+      scale(validation_targets, center = mean, scale = std)
+    
+    # Prep model
+    model <- keras_model_sequential() %>%
+      layer_dense(
+        units = 64,
+        activation = "relu",
+        input_shape = dim(training_data)[[2]]
+      ) %>%
+      layer_dense(units = 64, activation = "relu") %>%
+      layer_dense(units = 1)
+    
+    # Compile model
+    model %>% compile(optimizer = "rmsprop",
+                      loss = "mse",
+                      metrics = c("mae"))
+    # Fit model
+    model %>% fit(training_data, training_targets, epochs = epochs, verbose = 0)
+    # Test model
+    results <-
+      model %>% evaluate(validation_data, validation_targets)
+    validation_scores <- c(validation_scores, results[2])
+  }
+  # Sum error
+  validation_score <- mean(validation_scores)
+  validation_score
+}
+```
+
+```{r}
+parkinson_model()
+```
+
+31.8% Error is not that great
