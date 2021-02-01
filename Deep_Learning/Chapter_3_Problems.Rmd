@@ -246,4 +246,83 @@ parkinson_model <- function(k = 5, epochs = 20) {
 parkinson_model()
 ```
 
-31.8% Error is not that great
+mae of .33
+
+# Removing motor_UPDRS
+
+```{r}
+# Loop to process_data
+parkinson_model2 <- function(k = 5, epochs = 20) {
+  # Divide data by patients
+  indices <- sample(1:max(park.data$`subject#`))
+  folds <- cut(indices, breaks = k, labels = FALSE)
+  validation_scores <- c()
+  
+  # Split data sets
+  for (i in 1:k) {
+    # Prep data
+    validation_indices <- which(folds == i, arr.ind = TRUE)
+    training_data <-
+      park.data[!(park.data$`subject#` %in% validation_indices),-c(1, 5, 6)]
+    validation_data <-
+      park.data[park.data$`subject#` %in% validation_indices,-c(1, 5, 6)]
+    
+    # Normalize data
+    mean <- apply(training_data, 2, mean)
+    std <- apply(training_data, 2, sd)
+    training_data <-
+      scale(training_data, center = mean, scale = std)
+    validation_data <-
+      scale(validation_data, center = mean, scale = std)
+    
+    # Normalize targets
+    training_targets <-
+      park.data[!(park.data$`subject#` %in% validation_indices), 6] %>%
+      pull(total_UPDRS) %>% as.numeric()
+    validation_targets <-
+      park.data[park.data$`subject#` %in% validation_indices, 6] %>%
+      pull(total_UPDRS) %>% as.numeric()
+    mean <- mean(training_targets, na.rm = T)
+    std <- sd(training_targets, na.rm = T)
+    training_targets <-
+      scale(training_targets, center = mean, scale = std)
+    validation_targets <-
+      scale(validation_targets, center = mean, scale = std)
+    
+    # Prep model
+    model <- keras_model_sequential() %>%
+      layer_dense(
+        units = 64,
+        activation = "relu",
+        input_shape = dim(training_data)[[2]]
+      ) %>%
+      layer_dense(units = 64, activation = "relu") %>%
+      layer_dense(units = 1)
+    
+    # Compile model
+    model %>% compile(optimizer = "rmsprop",
+                      loss = "mse",
+                      metrics = c("mae"))
+    # Fit model
+    model %>% fit(training_data, training_targets, epochs = epochs, verbose = 0)
+    # Test model
+    results <-
+      model %>% evaluate(validation_data, validation_targets)
+    validation_scores <- c(validation_scores, results[2])
+  }
+  # Sum error
+  validation_score <- mean(validation_scores)
+  cat("Average MAE is", validation_score)
+}
+```
+
+```{r}
+parkinson_model2()
+```
+
+```{r}
+sd(park.data$total_UPDRS)
+mean(park.data$total_UPDRS)
+```
+
+Definitely within a standard deviation
