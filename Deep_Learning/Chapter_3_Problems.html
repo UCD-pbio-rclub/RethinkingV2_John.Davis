@@ -505,7 +505,7 @@ model %&gt;% fit(nn_train_data, nn_train_label, epochs = 20, verbose = 0)
 results &lt;- model %&gt;% evaluate(nn_test_data, nn_test_label)
 results</code></pre>
 <pre><code>##      loss  accuracy 
-## 0.3855884 0.8370370</code></pre>
+## 0.5184407 0.8370370</code></pre>
 </div>
 <div id="cancer-dataset" class="section level1">
 <h1>Cancer Dataset</h1>
@@ -513,8 +513,8 @@ results</code></pre>
 rm(list = ls())
 gc()</code></pre>
 <pre><code>##           used  (Mb) gc trigger  (Mb) max used  (Mb)
-## Ncells 2173565 116.1    4260401 227.6  3004972 160.5
-## Vcells 3679684  28.1    8388608  64.0  5266184  40.2</code></pre>
+## Ncells 2173919 116.1    4260808 227.6  3007355 160.7
+## Vcells 3680999  28.1    8388608  64.0  5270168  40.3</code></pre>
 </div>
 <div id="load-cancer-data" class="section level1">
 <h1>Load Cancer data</h1>
@@ -567,8 +567,8 @@ test_data &lt;- scale(test_data, center = mean, scale = std)
 rm(mean, std, index, novariation, lowexpression, dat_data, dat_labels)
 gc()</code></pre>
 <pre><code>##            used  (Mb) gc trigger  (Mb) max used  (Mb)
-## Ncells  2233258 119.3    6301681 336.6  7877101 420.7
-## Vcells 18884324 144.1   57768175 440.8 72210177 551.0</code></pre>
+## Ncells  2233636 119.3    6301080 336.6  7876350 420.7
+## Vcells 18885679 144.1   57769476 440.8 72211532 551.0</code></pre>
 <pre class="r"><code>dim(test_data)</code></pre>
 <pre><code>## [1]   201 17408</code></pre>
 <pre class="r"><code>length(test_targets)</code></pre>
@@ -594,8 +594,8 @@ build_model &lt;- function() {
 model %&gt;% fit(train_data, train_targets, epochs = 5)
 result &lt;- model %&gt;% evaluate(test_data, test_targets)
 result</code></pre>
-<pre><code>##         loss     accuracy 
-## 0.0002058721 1.0000000000</code></pre>
+<pre><code>##       loss   accuracy 
+## 0.01239793 0.99502486</code></pre>
 </div>
 <div id="parkinsons-data" class="section level1">
 <h1>Parkinsons data</h1>
@@ -603,8 +603,8 @@ result</code></pre>
 rm(list = ls())
 gc()</code></pre>
 <pre><code>##            used  (Mb) gc trigger  (Mb) max used  (Mb)
-## Ncells  2233662 119.3    6301681 336.6  7877101 420.7
-## Vcells 18881418 144.1   57768175 440.8 72210177 551.0</code></pre>
+## Ncells  2234040 119.4    6301080 336.6  7876350 420.7
+## Vcells 18882772 144.1   57769476 440.8 72211532 551.0</code></pre>
 <ul>
 <li>subject - Integer that uniquely identifies each subject</li>
 <li>age - Subject age</li>
@@ -738,7 +738,7 @@ parkinson_model &lt;- function(k = 5, epochs = 20) {
   validation_score
 }</code></pre>
 <pre class="r"><code>parkinson_model()</code></pre>
-<pre><code>## [1] 0.3043271</code></pre>
+<pre><code>## [1] 0.3270623</code></pre>
 <p>mae of .33</p>
 </div>
 <div id="removing-motor_updrs" class="section level1">
@@ -807,12 +807,212 @@ parkinson_model2 &lt;- function(k = 5, epochs = 20) {
   cat(&quot;Average MAE is&quot;, validation_score)
 }</code></pre>
 <pre class="r"><code>parkinson_model2()</code></pre>
-<pre><code>## Average MAE is 0.9986949</code></pre>
+<pre><code>## Average MAE is 1.118892</code></pre>
 <pre class="r"><code>sd(park.data$total_UPDRS)</code></pre>
 <pre><code>## [1] 10.70028</code></pre>
 <pre class="r"><code>mean(park.data$total_UPDRS)</code></pre>
 <pre><code>## [1] 29.01894</code></pre>
 <p>Definitely within a standard deviation</p>
+</div>
+<div id="abalone-data" class="section level1">
+<h1>Abalone data</h1>
+<pre class="r"><code># Refresh workspace
+rm(list = ls())
+gc()</code></pre>
+<pre><code>##           used  (Mb) gc trigger  (Mb) max used  (Mb)
+## Ncells 2240410 119.7    6301080 336.6  7876350 420.7
+## Vcells 5046361  38.6   46215581 352.6 72211532 551.0</code></pre>
+<pre class="r"><code>abalone.data &lt;- read_csv(
+  &quot;abalone.data&quot;,
+  col_names = c(
+    &quot;Sex&quot;,
+    &quot;Length&quot;,
+    &quot;Diameter&quot;,
+    &quot;Height&quot;,
+    &quot;Whole_weight&quot;,
+    &quot;Shucked_weight&quot;,
+    &quot;Viscera_weight&quot;,
+    &quot;Shell_weight&quot;,
+    &quot;Rings&quot;
+  )
+)</code></pre>
+<pre><code>## 
+## -- Column specification --------------------------------------------------------
+## cols(
+##   Sex = col_character(),
+##   Length = col_double(),
+##   Diameter = col_double(),
+##   Height = col_double(),
+##   Whole_weight = col_double(),
+##   Shucked_weight = col_double(),
+##   Viscera_weight = col_double(),
+##   Shell_weight = col_double(),
+##   Rings = col_double()
+## )</code></pre>
+<pre class="r"><code># Sex / nominal / -- / M, F, and I (infant)
+# Length / continuous / mm / Longest shell measurement
+# Diameter / continuous / mm / perpendicular to length
+# Height / continuous / mm / with meat in shell
+# Whole weight / continuous / grams / whole abalone
+# Shucked weight / continuous / grams / weight of meat
+# Viscera weight / continuous / grams / gut weight (after bleeding)
+# Shell weight / continuous / grams / after being dried
+# Rings / integer / -- / +1.5 gives the age in years
+summary(abalone.data)</code></pre>
+<pre><code>##      Sex                Length         Diameter          Height      
+##  Length:4177        Min.   :0.075   Min.   :0.0550   Min.   :0.0000  
+##  Class :character   1st Qu.:0.450   1st Qu.:0.3500   1st Qu.:0.1150  
+##  Mode  :character   Median :0.545   Median :0.4250   Median :0.1400  
+##                     Mean   :0.524   Mean   :0.4079   Mean   :0.1395  
+##                     3rd Qu.:0.615   3rd Qu.:0.4800   3rd Qu.:0.1650  
+##                     Max.   :0.815   Max.   :0.6500   Max.   :1.1300  
+##   Whole_weight    Shucked_weight   Viscera_weight    Shell_weight   
+##  Min.   :0.0020   Min.   :0.0010   Min.   :0.0005   Min.   :0.0015  
+##  1st Qu.:0.4415   1st Qu.:0.1860   1st Qu.:0.0935   1st Qu.:0.1300  
+##  Median :0.7995   Median :0.3360   Median :0.1710   Median :0.2340  
+##  Mean   :0.8287   Mean   :0.3594   Mean   :0.1806   Mean   :0.2388  
+##  3rd Qu.:1.1530   3rd Qu.:0.5020   3rd Qu.:0.2530   3rd Qu.:0.3290  
+##  Max.   :2.8255   Max.   :1.4880   Max.   :0.7600   Max.   :1.0050  
+##      Rings       
+##  Min.   : 1.000  
+##  1st Qu.: 8.000  
+##  Median : 9.000  
+##  Mean   : 9.934  
+##  3rd Qu.:11.000  
+##  Max.   :29.000</code></pre>
+</div>
+<div id="process-data" class="section level1">
+<h1>Process data</h1>
+<pre class="r"><code>targets &lt;- as.integer(abalone.data$Rings) - 1
+dat &lt;- abalone.data %&gt;%
+  dplyr::select(!Rings) %&gt;%
+  mutate(Sex = as.integer(as.factor(Sex)))</code></pre>
+<pre class="r"><code># Loop to process_data
+abalone_model &lt;- function(k = 5, epochs = 20) {
+  # Divide data by patients
+  indices &lt;- sample(1:nrow(abalone.data))
+  folds &lt;- cut(indices, breaks = k, labels = FALSE)
+  validation_scores &lt;- c()
+  
+  # Split data sets
+  for (i in 1:k) {
+    # Prep data
+    validation_indices &lt;- which(folds == i, arr.ind = TRUE)
+    training_data &lt;- dat[-validation_indices,]
+    validation_data &lt;- dat[validation_indices,]
+    training_targets &lt;- as.integer(targets[-validation_indices])
+    validation_targets &lt;- as.integer(targets[validation_indices])
+    
+    # Normalize data
+    mean &lt;- apply(training_data, 2, mean)
+    std &lt;- apply(training_data, 2, sd)
+    training_data &lt;- scale(training_data, center = mean, scale = std)
+    validation_data &lt;- scale(validation_data, center = mean, scale = std)
+    
+    # Prep model
+    model &lt;- keras_model_sequential() %&gt;%
+      layer_dense(
+        units = 64,
+        activation = &quot;relu&quot;,
+        input_shape = dim(training_data)[[2]]
+      ) %&gt;%
+      layer_dense(units = 64, activation = &quot;relu&quot;) %&gt;%
+      layer_dense(units = 29, activation = &quot;softmax&quot;)
+    
+    # Compile model
+    model %&gt;% compile(optimizer = &quot;rmsprop&quot;,
+                      loss = &quot;sparse_categorical_crossentropy&quot;,
+                      metrics = c(&quot;accuracy&quot;))
+    # Fit model
+    model %&gt;% fit(training_data, training_targets, epochs = epochs, verbose = 0)
+    # Test model
+    results &lt;-
+      model %&gt;% evaluate(validation_data, validation_targets)
+    validation_scores &lt;- c(validation_scores, results[2])
+  }
+  # Sum error
+  validation_score &lt;- mean(validation_scores)
+  cat(&quot;Mean accuracy was&quot;, validation_score)
+}</code></pre>
+<pre class="r"><code>abalone_model()</code></pre>
+<pre><code>## Mean accuracy was 0.2630997</code></pre>
+</div>
+<div id="change-up-the-parameters" class="section level1">
+<h1>Change up the parameters</h1>
+<pre class="r"><code>dat &lt;- abalone.data %&gt;%
+  dplyr::select(!c(Rings, Sex))
+abalone_model()</code></pre>
+<pre><code>## Mean accuracy was 0.2748394</code></pre>
+<pre class="r"><code>dat &lt;- abalone.data %&gt;%
+  dplyr::select(!c(Rings, Sex, Whole_weight, Viscera_weight, Shucked_weight))
+abalone_model()</code></pre>
+<pre><code>## Mean accuracy was 0.2592786</code></pre>
+<pre class="r"><code>dat &lt;- abalone.data %&gt;%
+  dplyr::select(!c(Rings, Sex, Shell_weight, Viscera_weight, Shucked_weight))
+abalone_model()</code></pre>
+<pre><code>## Mean accuracy was 0.2580764</code></pre>
+<pre class="r"><code>dat &lt;- abalone.data %&gt;%
+  dplyr::select(Whole_weight, Length, Height, Diameter)
+abalone_model()</code></pre>
+<pre><code>## Mean accuracy was 0.2551964</code></pre>
+</div>
+<div id="flip-to-regression" class="section level1">
+<h1>Flip to regression</h1>
+<pre class="r"><code>targets &lt;- abalone.data$Rings
+dat &lt;- abalone.data %&gt;%
+  dplyr::select(!Rings) %&gt;%
+  mutate(Sex = as.integer(as.factor(Sex)))</code></pre>
+<pre class="r"><code># Loop to process_data
+abalone_model &lt;- function(k = 5, epochs = 20) {
+  # Divide data by patients
+  indices &lt;- sample(1:nrow(abalone.data))
+  folds &lt;- cut(indices, breaks = k, labels = FALSE)
+  validation_scores &lt;- c()
+  
+  # Split data sets
+  for (i in 1:k) {
+    # Prep data
+    validation_indices &lt;- which(folds == i, arr.ind = TRUE)
+    training_data &lt;- dat[-validation_indices,]
+    validation_data &lt;- dat[validation_indices,]
+    training_targets &lt;- as.integer(targets[-validation_indices])
+    validation_targets &lt;- as.integer(targets[validation_indices])
+    
+    # Normalize data
+    mean &lt;- apply(training_data, 2, mean)
+    std &lt;- apply(training_data, 2, sd)
+    training_data &lt;- scale(training_data, center = mean, scale = std)
+    validation_data &lt;- scale(validation_data, center = mean, scale = std)
+    
+    # Prep model
+    model &lt;- keras_model_sequential() %&gt;%
+      layer_dense(
+        units = 64,
+        activation = &quot;relu&quot;,
+        input_shape = dim(training_data)[[2]]
+      ) %&gt;%
+      layer_dense(units = 64, activation = &quot;relu&quot;) %&gt;%
+      layer_dense(units = 1)
+    
+    # Compile model
+    model %&gt;% compile(optimizer = &quot;rmsprop&quot;,
+                      loss = &quot;mse&quot;,
+                      metrics = c(&quot;mae&quot;))
+    # Fit model
+    model %&gt;% fit(training_data, training_targets, epochs = epochs, verbose = 0)
+    # Test model
+    results &lt;-
+      model %&gt;% evaluate(validation_data, validation_targets)
+    validation_scores &lt;- c(validation_scores, results[2])
+  }
+  # Sum error
+  validation_score &lt;- mean(validation_scores)
+  cat(&quot;Mean average error was&quot;, validation_score)
+}</code></pre>
+<pre class="r"><code>abalone_model()</code></pre>
+<pre><code>## Mean average error was 1.535638</code></pre>
+<pre class="r"><code>sd(abalone.data$Rings)</code></pre>
+<pre><code>## [1] 3.224169</code></pre>
 </div>
 
 

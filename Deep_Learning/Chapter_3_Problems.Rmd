@@ -326,3 +326,194 @@ mean(park.data$total_UPDRS)
 ```
 
 Definitely within a standard deviation
+
+# Abalone data
+```{r}
+# Refresh workspace
+rm(list = ls())
+gc()
+```
+
+```{r}
+abalone.data <- read_csv(
+  "abalone.data",
+  col_names = c(
+    "Sex",
+    "Length",
+    "Diameter",
+    "Height",
+    "Whole_weight",
+    "Shucked_weight",
+    "Viscera_weight",
+    "Shell_weight",
+    "Rings"
+  )
+)
+# Sex / nominal / -- / M, F, and I (infant)
+# Length / continuous / mm / Longest shell measurement
+# Diameter / continuous / mm / perpendicular to length
+# Height / continuous / mm / with meat in shell
+# Whole weight / continuous / grams / whole abalone
+# Shucked weight / continuous / grams / weight of meat
+# Viscera weight / continuous / grams / gut weight (after bleeding)
+# Shell weight / continuous / grams / after being dried
+# Rings / integer / -- / +1.5 gives the age in years
+summary(abalone.data)
+```
+
+# Process data
+```{r}
+targets <- as.integer(abalone.data$Rings) - 1
+dat <- abalone.data %>%
+  dplyr::select(!Rings) %>%
+  mutate(Sex = as.integer(as.factor(Sex)))
+```
+
+
+```{r}
+# Loop to process_data
+abalone_model <- function(k = 5, epochs = 20) {
+  # Divide data by patients
+  indices <- sample(1:nrow(abalone.data))
+  folds <- cut(indices, breaks = k, labels = FALSE)
+  validation_scores <- c()
+  
+  # Split data sets
+  for (i in 1:k) {
+    # Prep data
+    validation_indices <- which(folds == i, arr.ind = TRUE)
+    training_data <- dat[-validation_indices,]
+    validation_data <- dat[validation_indices,]
+    training_targets <- as.integer(targets[-validation_indices])
+    validation_targets <- as.integer(targets[validation_indices])
+    
+    # Normalize data
+    mean <- apply(training_data, 2, mean)
+    std <- apply(training_data, 2, sd)
+    training_data <- scale(training_data, center = mean, scale = std)
+    validation_data <- scale(validation_data, center = mean, scale = std)
+    
+    # Prep model
+    model <- keras_model_sequential() %>%
+      layer_dense(
+        units = 64,
+        activation = "relu",
+        input_shape = dim(training_data)[[2]]
+      ) %>%
+      layer_dense(units = 64, activation = "relu") %>%
+      layer_dense(units = 29, activation = "softmax")
+    
+    # Compile model
+    model %>% compile(optimizer = "rmsprop",
+                      loss = "sparse_categorical_crossentropy",
+                      metrics = c("accuracy"))
+    # Fit model
+    model %>% fit(training_data, training_targets, epochs = epochs, verbose = 0)
+    # Test model
+    results <-
+      model %>% evaluate(validation_data, validation_targets)
+    validation_scores <- c(validation_scores, results[2])
+  }
+  # Sum error
+  validation_score <- mean(validation_scores)
+  cat("Mean accuracy was", validation_score)
+}
+```
+
+```{r}
+abalone_model()
+```
+
+# Change up the parameters
+
+```{r}
+dat <- abalone.data %>%
+  dplyr::select(!c(Rings, Sex))
+abalone_model()
+```
+
+```{r}
+dat <- abalone.data %>%
+  dplyr::select(!c(Rings, Sex, Whole_weight, Viscera_weight, Shucked_weight))
+abalone_model()
+```
+
+```{r}
+dat <- abalone.data %>%
+  dplyr::select(!c(Rings, Sex, Shell_weight, Viscera_weight, Shucked_weight))
+abalone_model()
+```
+
+```{r}
+dat <- abalone.data %>%
+  dplyr::select(Whole_weight, Length, Height, Diameter)
+abalone_model()
+```
+
+# Flip to regression
+```{r}
+targets <- abalone.data$Rings
+dat <- abalone.data %>%
+  dplyr::select(!Rings) %>%
+  mutate(Sex = as.integer(as.factor(Sex)))
+```
+
+
+```{r}
+# Loop to process_data
+abalone_model <- function(k = 5, epochs = 20) {
+  # Divide data by patients
+  indices <- sample(1:nrow(abalone.data))
+  folds <- cut(indices, breaks = k, labels = FALSE)
+  validation_scores <- c()
+  
+  # Split data sets
+  for (i in 1:k) {
+    # Prep data
+    validation_indices <- which(folds == i, arr.ind = TRUE)
+    training_data <- dat[-validation_indices,]
+    validation_data <- dat[validation_indices,]
+    training_targets <- as.integer(targets[-validation_indices])
+    validation_targets <- as.integer(targets[validation_indices])
+    
+    # Normalize data
+    mean <- apply(training_data, 2, mean)
+    std <- apply(training_data, 2, sd)
+    training_data <- scale(training_data, center = mean, scale = std)
+    validation_data <- scale(validation_data, center = mean, scale = std)
+    
+    # Prep model
+    model <- keras_model_sequential() %>%
+      layer_dense(
+        units = 64,
+        activation = "relu",
+        input_shape = dim(training_data)[[2]]
+      ) %>%
+      layer_dense(units = 64, activation = "relu") %>%
+      layer_dense(units = 1)
+    
+    # Compile model
+    model %>% compile(optimizer = "rmsprop",
+                      loss = "mse",
+                      metrics = c("mae"))
+    # Fit model
+    model %>% fit(training_data, training_targets, epochs = epochs, verbose = 0)
+    # Test model
+    results <-
+      model %>% evaluate(validation_data, validation_targets)
+    validation_scores <- c(validation_scores, results[2])
+  }
+  # Sum error
+  validation_score <- mean(validation_scores)
+  cat("Mean average error was", validation_score)
+}
+```
+
+```{r}
+abalone_model()
+```
+
+```{r}
+sd(abalone.data$Rings)
+```
+
