@@ -1,0 +1,657 @@
+---
+title: "Chapter 4"
+author: "John D."
+date: "2/9/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+R.version
+
+library(keras)
+library(tidyverse)
+library(ISLR)
+library(tree)
+library(randomForest)
+library(MASS)
+library(gbm)
+```
+
+## 1) In the book L2 and dropout regularization are added to the IMDB review classification example.  Do these regularized models improve predictions of the test set?
+
+```{r}
+# Load Data
+imdb <- dataset_imdb(num_words = 10000)
+c(c(train_data, train_labels), c(test_data, test_labels)) %<-% imdb
+
+# Prepare data
+vectorize_sequences <- function(sequences, dimension = 10000) {
+  results <- matrix(0, nrow = length(sequences), ncol = dimension)      
+  for (i in 1:length(sequences))
+    results[i, sequences[[i]]] <- 1                                     
+  results
+}
+
+x_train <- vectorize_sequences(train_data)
+x_test <- vectorize_sequences(test_data)
+y_train <- as.numeric(train_labels)
+y_test <- as.numeric(test_labels)
+
+# Create validation set
+val_indices <- 1:10000
+
+x_val <- x_train[val_indices,]
+partial_x_train <- x_train[-val_indices,]
+y_val <- y_train[val_indices]
+partial_y_train <- y_train[-val_indices]
+
+# Make dataframe for results
+results_df <- data.frame("Model" = as.character(), "Loss" = as.numeric(), "Accuracy" = as.numeric())
+```
+
+```{r}
+# Build original model
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+
+results_df <- add_row(results_df, data.frame(Model = "Original model", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Build original model with 4 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 4,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "Original model, 4 epochs", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Add L2 regularization
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "L2 Model", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Add L2 regularization, 4 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 4,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "L2 Model, 4 epochs", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Add Dropout regularization
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(10000)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "Dropout model", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Add Dropout regularization, 4 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(10000)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 4,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "Dropout model, 4 epochs", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Add L2 regularization and Dropout
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu", input_shape = c(10000)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu") %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 20,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "L2 and Dropout Model", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Add L2 regularization and Dropout, 4 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu", input_shape = c(10000)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu") %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 4,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "L2 and Dropout Model, 4 epochs", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Summary of results
+results_df %>%
+  arrange(-Accuracy)
+```
+
+Slight improvement
+
+```{r}
+# Add L2 regularization, 5 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 5,
+  batch_size = 512,
+  verbose = F,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "L2 Model, 5 epochs", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Summary of results
+results_df %>%
+  arrange(-Accuracy)
+```
+
+Only a slight improvement
+
+```{r}
+# clear workspace
+rm(list = ls())
+gc()
+```
+
+## 2) Try adding a regularization method to the OJ purchase prediction fit.  Does it help test set prediction accuracy?  Optional: try more than one method.
+
+```{r}
+# Set up the data
+dat <- OJ
+summary(dat)
+dim(dat)
+# 0 = CH 1 = MM
+nn_labels <- as.numeric(dat$Purchase) - 1
+nn_data <- dat[,-1]
+nn_data <- nn_data[,c(9,12,7,16,14)]
+
+# Split data into train and test
+set.seed(1)
+train <- sample(1:nrow(dat), 800)
+train_data <- nn_data[train,]
+train_labels <- nn_labels[train]
+x_test <- nn_data[-train,]
+y_test <- nn_labels[-train]
+
+# Standardize data
+
+mean <- apply(train_data, 2, mean)
+std <- apply(train_data, 2, sd)
+train_data <- scale(train_data, center = mean, scale = std)
+x_test <- scale(x_test, center = mean, scale = std)
+
+# Split train data into train and validation
+val_indices <- sample(1:800, 200)
+x_val <- train_data[val_indices,]
+partial_x_train <- train_data[-val_indices,]
+y_val <- train_labels[val_indices]
+partial_y_train <- train_labels[-val_indices]
+
+# Make dataframe for results
+results_df <- data.frame("Model" = as.character(), "Loss" = as.numeric(), "Accuracy" = as.numeric())
+```
+
+# OJ Model
+```{r}
+# Build original model, 200 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(5)) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 200,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+
+results_df <- add_row(results_df, data.frame(Model = "Original model, 200 epochs", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Build original model, 90 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(5)) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 90,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+
+results_df <- add_row(results_df, data.frame(Model = "Original model, 90 epochs", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Add L2 regularization, 200 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu", input_shape = c(5)) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 200,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "L2 Model, 200 epochs", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Add L2 regularization, 90 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu", input_shape = c(5)) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 90,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "L2 Model, 90 epochs", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Add Dropout regularization, 200 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(5)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 200,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "Dropout model, 200 epochs", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Add Dropout regularization, 90 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(5)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 90,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "Dropout model, 90 epochs", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Add L2 regularization and Dropout, 200 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu", input_shape = c(5)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu") %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 200,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "L2 and Dropout Model, 200 epochs", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Add L2 regularization and Dropout, 90 epochs
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu", input_shape = c(5)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001), activation = "relu") %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Optimize original model
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Fit model
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 90,
+  verbose = F,
+  batch_size = 512,
+  validation_data = list(x_val, y_val)
+)
+
+# Evaluate model
+results <- model %>% evaluate(x_test, y_test)
+results
+results_df <- add_row(results_df, data.frame(Model = "L2 and Dropout Model, 90 epochs", Loss = results[[1]], Accuracy = results[[2]]))
+```
+
+```{r}
+# Summary of results
+results_df %>%
+  arrange(-Accuracy)
+```
+
+Slight improvement
+
+## 3) (optional): Use the OJ or Boston data sets to determine if missing data should be coded as "0" before or after scaling.
+
