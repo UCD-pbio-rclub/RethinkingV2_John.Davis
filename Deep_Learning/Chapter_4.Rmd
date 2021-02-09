@@ -119,3 +119,103 @@ library("dplyr")
   * Make sure training and test have missing data if you expect it to be present
   
 ### 4.3.2. Feature engineering
+## 4.4. OVERFITTING AND UNDERFITTING
+### 4.4.1. Reducing the network’s size
+
+```{r}
+library(keras)
+
+# bad
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+```
+
+```{r}
+# good
+model <- keras_model_sequential() %>%
+  layer_dense(units = 4, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 4, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+```
+
+```{r}
+# ugly
+model <- keras_model_sequential() %>%
+  layer_dense(units = 512, activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 512, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+```
+
+### 4.4.2. Adding weight regularization
+
+```{r}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001),
+              activation = "relu", input_shape = c(10000)) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001),
+              activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+```
+
+```{r}
+regularizer_l1(0.001)
+regularizer_l1_l2(l1 = 0.001, l2 = 0.001)
+```
+
+### 4.4.3. Adding dropout
+
+```{r}
+# layer_output <- layer_output * sample(0:1, length(layer_output),
+#                                       replace = TRUE)
+```
+
+```{r}
+# layer_output <- layer_output * 0.5
+```
+
+```{r}
+# layer_output <- layer_output * sample(0:1, length(layer_output),      
+#                                       replace = TRUE)
+# layer_output <- layer_output / 0.5 
+```
+
+```{r}
+# layer_dropout(rate = 0.5)
+```
+
+```{r}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = c(10000)) %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+```
+
+## 4.5. THE UNIVERSAL WORKFLOW OF MACHINE LEARNING
+### 4.5.1. Defining the problem and assembling a dataset
+### 4.5.2. Choosing a measure of success
+### 4.5.3. Deciding on an evaluation protocol
+### 4.5.4. Preparing your data
+### 4.5.5. Developing a model that does better than a baseline
+
+|Problem type| Last-layer activation| Loss function|
+|---|---|---|
+|Binary classification	|sigmoid	|binary_crossentropy|
+|Multiclass, single-label classification	|softmax	|categorical_crossentropy|
+|Multiclass, multilabel classification|	sigmoid|	binary_crossentropy|
+|Regression to arbitrary values	|None|	mse|
+|Regression to values between 0 and 1	|sigmoid	|mse or binary_crossentropy|
+
+### 4.5.6. Scaling up: developing a model that overfits
+### 4.5.7. Regularizing your model and tuning your hyperparameters
+## 4.6. SUMMARY
+
+* Define the problem at hand and the data on which you’ll train. Collect this data, or annotate it with labels if need be.
+C* hoose how you’ll measure success on your problem. Which metrics will you monitor on your validation data?
+* Determine your evaluation protocol: Hold-out validation? K-fold validation? Which portion of the data should you use for validation?
+* Develop a first model that does better than a basic baseline: a model with statistical power.
+* Develop a model that overfits.
+* Regularize your model and tune its hyperparameters, based on performance on the validation data. A lot of machine-learning research tends to focus only on this step—but keep the big picture in mind.

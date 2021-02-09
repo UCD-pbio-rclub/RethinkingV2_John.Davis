@@ -529,6 +529,128 @@ summary {
 <h3>4.3.2. Feature engineering</h3>
 </div>
 </div>
+<div id="overfitting-and-underfitting" class="section level2">
+<h2>4.4. OVERFITTING AND UNDERFITTING</h2>
+<div id="reducing-the-networks-size" class="section level3">
+<h3>4.4.1. Reducing the network’s size</h3>
+<pre class="r"><code>library(keras)
+
+# bad
+model &lt;- keras_model_sequential() %&gt;%
+  layer_dense(units = 16, activation = &quot;relu&quot;, input_shape = c(10000)) %&gt;%
+  layer_dense(units = 16, activation = &quot;relu&quot;) %&gt;%
+  layer_dense(units = 1, activation = &quot;sigmoid&quot;)</code></pre>
+<pre class="r"><code># good
+model &lt;- keras_model_sequential() %&gt;%
+  layer_dense(units = 4, activation = &quot;relu&quot;, input_shape = c(10000)) %&gt;%
+  layer_dense(units = 4, activation = &quot;relu&quot;) %&gt;%
+  layer_dense(units = 1, activation = &quot;sigmoid&quot;)</code></pre>
+<pre class="r"><code># ugly
+model &lt;- keras_model_sequential() %&gt;%
+  layer_dense(units = 512, activation = &quot;relu&quot;, input_shape = c(10000)) %&gt;%
+  layer_dense(units = 512, activation = &quot;relu&quot;) %&gt;%
+  layer_dense(units = 1, activation = &quot;sigmoid&quot;)</code></pre>
+</div>
+<div id="adding-weight-regularization" class="section level3">
+<h3>4.4.2. Adding weight regularization</h3>
+<pre class="r"><code>model &lt;- keras_model_sequential() %&gt;%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001),
+              activation = &quot;relu&quot;, input_shape = c(10000)) %&gt;%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.001),
+              activation = &quot;relu&quot;) %&gt;%
+  layer_dense(units = 1, activation = &quot;sigmoid&quot;)</code></pre>
+<pre class="r"><code>regularizer_l1(0.001)</code></pre>
+<pre><code>## &lt;tensorflow.python.keras.regularizers.L1L2&gt;</code></pre>
+<pre class="r"><code>regularizer_l1_l2(l1 = 0.001, l2 = 0.001)</code></pre>
+<pre><code>## &lt;tensorflow.python.keras.regularizers.L1L2&gt;</code></pre>
+</div>
+<div id="adding-dropout" class="section level3">
+<h3>4.4.3. Adding dropout</h3>
+<pre class="r"><code># layer_output &lt;- layer_output * sample(0:1, length(layer_output),
+#                                       replace = TRUE)</code></pre>
+<pre class="r"><code># layer_output &lt;- layer_output * 0.5</code></pre>
+<pre class="r"><code># layer_output &lt;- layer_output * sample(0:1, length(layer_output),      
+#                                       replace = TRUE)
+# layer_output &lt;- layer_output / 0.5 </code></pre>
+<pre class="r"><code># layer_dropout(rate = 0.5)</code></pre>
+<pre class="r"><code>model &lt;- keras_model_sequential() %&gt;%
+  layer_dense(units = 16, activation = &quot;relu&quot;, input_shape = c(10000)) %&gt;%
+  layer_dropout(rate = 0.5) %&gt;%
+  layer_dense(units = 16, activation = &quot;relu&quot;) %&gt;%
+  layer_dropout(rate = 0.5) %&gt;%
+  layer_dense(units = 1, activation = &quot;sigmoid&quot;)</code></pre>
+</div>
+</div>
+<div id="the-universal-workflow-of-machine-learning" class="section level2">
+<h2>4.5. THE UNIVERSAL WORKFLOW OF MACHINE LEARNING</h2>
+<div id="defining-the-problem-and-assembling-a-dataset" class="section level3">
+<h3>4.5.1. Defining the problem and assembling a dataset</h3>
+</div>
+<div id="choosing-a-measure-of-success" class="section level3">
+<h3>4.5.2. Choosing a measure of success</h3>
+</div>
+<div id="deciding-on-an-evaluation-protocol" class="section level3">
+<h3>4.5.3. Deciding on an evaluation protocol</h3>
+</div>
+<div id="preparing-your-data" class="section level3">
+<h3>4.5.4. Preparing your data</h3>
+</div>
+<div id="developing-a-model-that-does-better-than-a-baseline" class="section level3">
+<h3>4.5.5. Developing a model that does better than a baseline</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Problem type</th>
+<th>Last-layer activation</th>
+<th>Loss function</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Binary classification</td>
+<td>sigmoid</td>
+<td>binary_crossentropy</td>
+</tr>
+<tr class="even">
+<td>Multiclass, single-label classification</td>
+<td>softmax</td>
+<td>categorical_crossentropy</td>
+</tr>
+<tr class="odd">
+<td>Multiclass, multilabel classification</td>
+<td>sigmoid</td>
+<td>binary_crossentropy</td>
+</tr>
+<tr class="even">
+<td>Regression to arbitrary values</td>
+<td>None</td>
+<td>mse</td>
+</tr>
+<tr class="odd">
+<td>Regression to values between 0 and 1</td>
+<td>sigmoid</td>
+<td>mse or binary_crossentropy</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="scaling-up-developing-a-model-that-overfits" class="section level3">
+<h3>4.5.6. Scaling up: developing a model that overfits</h3>
+</div>
+<div id="regularizing-your-model-and-tuning-your-hyperparameters" class="section level3">
+<h3>4.5.7. Regularizing your model and tuning your hyperparameters</h3>
+</div>
+</div>
+<div id="summary" class="section level2">
+<h2>4.6. SUMMARY</h2>
+<ul>
+<li>Define the problem at hand and the data on which you’ll train. Collect this data, or annotate it with labels if need be. C* hoose how you’ll measure success on your problem. Which metrics will you monitor on your validation data?</li>
+<li>Determine your evaluation protocol: Hold-out validation? K-fold validation? Which portion of the data should you use for validation?</li>
+<li>Develop a first model that does better than a basic baseline: a model with statistical power.</li>
+<li>Develop a model that overfits.</li>
+<li>Regularize your model and tune its hyperparameters, based on performance on the validation data. A lot of machine-learning research tends to focus only on this step—but keep the big picture in mind.</li>
+</ul>
+</div>
 </div>
 
 
