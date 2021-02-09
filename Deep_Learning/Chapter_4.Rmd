@@ -214,7 +214,7 @@ model <- keras_model_sequential() %>%
 ## 4.6. SUMMARY
 
 * Define the problem at hand and the data on which you’ll train. Collect this data, or annotate it with labels if need be.
-C* hoose how you’ll measure success on your problem. Which metrics will you monitor on your validation data?
+* Choose how you’ll measure success on your problem. Which metrics will you monitor on your validation data?
 * Determine your evaluation protocol: Hold-out validation? K-fold validation? Which portion of the data should you use for validation?
 * Develop a first model that does better than a basic baseline: a model with statistical power.
 * Develop a model that overfits.
