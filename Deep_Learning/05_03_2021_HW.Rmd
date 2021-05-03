@@ -1,0 +1,266 @@
+---
+title: "05_03_2021_HW"
+author: "John D."
+date: "5/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library("keras")
+library("dplyr")
+library("tensorflow")
+library("grid")
+library("gridExtra")
+library("magick")
+library("viridis")
+tf$compat$v1$disable_eager_execution()
+```
+
+# Format data
+
+```{r}
+original_dataset_dir <- "Data/newFlowers/"
+base_dir <- "Data/Flowers"
+#dir.create(base_dir)
+
+train_dir <- file.path(base_dir, "train")
+#dir.create(train_dir)
+validation_dir <- file.path(base_dir, "validation")
+#dir.create(validation_dir)
+test_dir <- file.path(base_dir, "test")
+#dir.create(test_dir)
+
+#Train
+train_daisy_dir <- file.path(train_dir, "daisy")
+#dir.create(train_daisy_dir)
+train_dandelion_dir <- file.path(train_dir, "dandelion")
+#dir.create(train_dandelion_dir)
+train_rose_dir <- file.path(train_dir, "rose")
+#dir.create(train_rose_dir)
+train_sunflower_dir <- file.path(train_dir, "sunflower")
+#dir.create(train_sunflower_dir)
+train_tulip_dir <- file.path(train_dir, "tulip")
+#dir.create(train_tulip_dir)
+
+#Validation
+validation_daisy_dir <- file.path(validation_dir, "daisy")
+#dir.create(validation_daisy_dir)
+validation_dandelion_dir <- file.path(validation_dir, "dandelion")
+#dir.create(validation_dandelion_dir)
+validation_rose_dir <- file.path(validation_dir, "rose")
+#dir.create(validation_rose_dir)
+validation_sunflower_dir <- file.path(validation_dir, "sunflower")
+#dir.create(validation_sunflower_dir)
+validation_tulip_dir <- file.path(validation_dir, "tulip")
+#dir.create(validation_tulip_dir)
+
+#Test
+test_daisy_dir <- file.path(test_dir, "daisy")
+#dir.create(test_daisy_dir)
+test_dandelion_dir <- file.path(test_dir, "dandelion")
+#dir.create(test_dandelion_dir)
+test_rose_dir <- file.path(test_dir, "rose")
+#dir.create(test_rose_dir)
+test_sunflower_dir <- file.path(test_dir, "sunflower")
+#dir.create(test_sunflower_dir)
+test_tulip_dir <- file.path(test_dir, "tulip")
+#dir.create(test_tulip_dir)
+```
+
+```{r, eval = F}
+# Split up data
+flowers <- c("daisy", "dandelion", "rose", "sunflower", "tulip")
+for(flower in flowers){
+  file_vector <- dir(paste0("Data/newFlowers/",flower))
+  vector_length <- length(file_vector)
+  test_size <- .20
+  validation_size <- .20
+  test_index <- sample(1:vector_length, floor(vector_length*test_size))
+  validation_index <- sample((1:vector_length)[!(1:vector_length %in% test_index)], floor(vector_length*test_size))
+  train_index <- (1:vector_length)[!(1:vector_length %in% c(test_index, validation_index))]
+  
+  if(length(c(test_index,validation_index,train_index)) != vector_length){
+    break
+  }
+  
+  fnames <- file_vector[test_index]
+  file.copy(file.path(original_dataset_dir, flower, fnames),
+          file.path(get(paste0("test_", flower, "_dir"))))
+  fnames <- file_vector[validation_index]
+  file.copy(file.path(original_dataset_dir, flower, fnames),
+          file.path(get(paste0("validation_", flower, "_dir"))))
+  fnames <- file_vector[train_index]
+  file.copy(file.path(original_dataset_dir, flower, fnames),
+          file.path(get(paste0("train_", flower, "_dir"))))
+  
+}
+```
+
+# Sanity check
+```{r, eval = F}
+for(flower in flowers){
+  for(set in c("test", "train", "validation")){
+    cat("total", set, flower,"images:", length(list.files(get(paste0(set, "_", flower, "_dir")))), "\n")
+  }
+}
+```
+
+# Simple model
+```{r}
+model <- keras_model_sequential() %>%
+  layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = "relu",
+                input_shape = c(150, 150, 3)) %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_conv_2d(filters = 64, kernel_size = c(3, 3), activation = "relu") %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_conv_2d(filters = 128, kernel_size = c(3, 3), activation = "relu") %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_conv_2d(filters = 128, kernel_size = c(3, 3), activation = "relu") %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_flatten() %>%
+  layer_dense(units = 512, activation = "relu") %>%
+  layer_dense(units = 5, activation = "softmax")
+```
+
+```{r}
+model
+```
+
+
+```{r}
+model %>% compile(
+  loss = "categorical_crossentropy",
+  optimizer = "rmsprop",
+  metrics = c("accuracy")
+)
+```
+
+```{r}
+train_datagen <- image_data_generator(rescale = 1/255)             
+validation_datagen <- image_data_generator(rescale = 1/255)        
+
+train_generator <- flow_images_from_directory(
+  train_dir,                                                       
+  train_datagen,                                                   
+  target_size = c(150, 150),                                       
+  batch_size = 20,                                                 
+  class_mode = "categorical"
+)
+
+validation_generator <- flow_images_from_directory(
+  validation_dir,
+  validation_datagen,
+  target_size = c(150, 150),
+  batch_size = 20,
+  class_mode = "categorical"
+)
+```
+
+```{r}
+history <- model %>% fit_generator(
+  train_generator,
+  steps_per_epoch = 100,
+  epochs = 30,
+  validation_data = validation_generator,
+  validation_steps = 40
+)
+```
+
+```{r}
+model %>% save_model_hdf5("flowers_1.h5")
+```
+
+```{r}
+plot(history)
+```
+
+```{r}
+test_datagen <- image_data_generator(rescale = 1/255)
+test_generator <- flow_images_from_directory(
+  test_dir,
+  test_datagen,
+  target_size = c(150, 150),
+  batch_size = 20,
+  class_mode = "categorical"
+)
+model %>% evaluate_generator(test_generator, steps = 40)
+```
+
+
+# Data augmentation
+
+```{r}
+model <- keras_model_sequential() %>%
+  layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = "relu",
+                input_shape = c(150, 150, 3)) %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_conv_2d(filters = 64, kernel_size = c(3, 3), activation = "relu") %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_conv_2d(filters = 128, kernel_size = c(3, 3), activation = "relu") %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_conv_2d(filters = 128, kernel_size = c(3, 3), activation = "relu") %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_flatten() %>%
+  layer_dropout(rate = 0.5) %>%
+  layer_dense(units = 512, activation = "relu") %>%
+  layer_dense(units = 5, activation = "softmax")
+model %>% compile(
+  loss = "categorical_crossentropy",
+  optimizer = "rmsprop",
+  metrics = c("acc")
+)
+```
+
+
+```{r}
+datagen <- image_data_generator(
+  rescale = 1/255,
+  rotation_range = 40,
+  width_shift_range = 0.2,
+  height_shift_range = 0.2,
+  shear_range = 0.2,
+  zoom_range = 0.2,
+  horizontal_flip = TRUE
+)
+test_datagen <- image_data_generator(rescale = 1/255)
+train_generator <- flow_images_from_directory(          
+  train_dir,                                            
+  datagen,                                              
+  target_size = c(150, 150),                            
+  batch_size = 20,
+  class_mode = "categorical"                                 
+)
+validation_generator <- flow_images_from_directory(
+  validation_dir,
+  test_datagen,
+  target_size = c(150, 150),
+  batch_size = 20,
+  class_mode = "categorical"
+)
+history <- model %>% fit_generator(
+  train_generator,
+  steps_per_epoch = 100,
+  epochs = 50,
+  validation_data = validation_generator,
+  validation_steps = 40
+)
+```
+
+```{r}
+plot(history)
+```
+
+
+```{r}
+model %>% save_model_hdf5("flowers_2.h5")
+```
+
+```{r}
+model %>% evaluate_generator(test_generator, steps = 40)
+```
+
